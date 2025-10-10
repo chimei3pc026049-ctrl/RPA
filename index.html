@@ -75,7 +75,7 @@
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-4">
-                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16">
+                 <img src="https://www.chimei.org.tw/main/cmh__file/main_site/logo/logo.svg" alt="奇美醫院 Logo" class="h-12 sm:h-16">
                 <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
             </div>
         </header>
@@ -188,12 +188,42 @@
 
         window.addEventListener('load', () => {
             // --- USER DATA STORE ---
-            const users = {
+            // NOTE: This uses localStorage for password persistence across reloads.
+            // This is NOT secure for production use as data is saved in plain text.
+            // For a real application, a proper authentication backend (like Firebase Auth) should be used.
+            let users = {
               'admin': { password: 'cch2013', role: 'admin', name: '系統管理員' },
               '891025': { password: '1234', role: 'finalApprover', name: '核決主管' },
               'a003c1': { password: '1234', role: 'handler', name: '承辦人員' },
               'a00535': { password: '1234', role: 'handlerSupervisor', name: '承辦單位主管' }
             };
+
+            function saveUsersToLocalStorage() {
+                try {
+                    localStorage.setItem('rpaUsers', JSON.stringify(users));
+                } catch (e) {
+                    console.error("Failed to save users to localStorage", e);
+                }
+            }
+
+            function loadUsersFromLocalStorage() {
+                try {
+                    const storedUsers = localStorage.getItem('rpaUsers');
+                    if (storedUsers) {
+                        const parsedUsers = JSON.parse(storedUsers);
+                        // Merge stored users with defaults to keep roles and names, but update passwords
+                        Object.keys(users).forEach(username => {
+                            if (parsedUsers[username] && parsedUsers[username].password) {
+                                users[username].password = parsedUsers[username].password;
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error("Failed to load users from localStorage", e);
+                }
+            }
+            
+            loadUsersFromLocalStorage(); // Load users on startup
 
             const state = {
                 isLoggedIn: false,
@@ -356,6 +386,7 @@
                         errorEl.textContent = '兩次輸入的新密碼不相符。'; return;
                     }
                     users[currentUser.username].password = newPass;
+                    saveUsersToLocalStorage();
                     hideModal();
                     showAlert('密碼已成功修改！');
                 };
