@@ -75,7 +75,7 @@
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-4">
-                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16">
+                 <img src="https://www.chimei.org.tw/main/cmh__file/main_site/logo/logo.svg" alt="奇美醫院 Logo" class="h-12 sm:h-16">
                 <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
             </div>
         </header>
@@ -190,9 +190,9 @@
             // --- USER DATA STORE ---
             let users = {
               'admin': { password: 'cch2013', role: 'admin', name: '系統管理員' },
-              '891025': { password: '1234', role: 'finalApprover', name: '核決主管' },
+              '891025': { password: '32004', role: 'finalApprover', name: '核決主管' },
               'a003c1': { password: '1234', role: 'handler', name: '承辦人員' },
-              'a00535': { password: '1234', role: 'handlerSupervisor', name: '承辦單位主管' }
+              'a00535': { password: '32005', role: 'handlerSupervisor', name: '承辦單位主管' }
             };
 
             function saveUsersToLocalStorage() {
@@ -313,7 +313,7 @@
 
             function promptLogin() {
                 modalTitle.textContent = '管理員登入';
-                modalContent.innerHTML = `<div class="space-y-4"><div><label for="modal-username" class="block text-sm font-medium text-gray-700 text-left">帳號</label><input type="text" id="modal-username" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><div><label for="modal-password" class="block text-sm font-medium text-gray-700 text-left">密碼</label><input type="password" id="modal-password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><p id="modal-error" class="text-sm text-red-600 h-4"></p></div>`;
+                modalContent.innerHTML = `<div class="space-y-4"><div><label for="modal-username" class="block text-sm font-medium text-gray-700 text-left">帳號</label><input type="text" id="modal-username" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><div><label for="modal-password" class="block text-sm font-medium text-gray-700 text-left">密碼 (分機)</label><input type="password" id="modal-password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><p id="modal-error" class="text-sm text-red-600 h-4"></p></div>`;
                 modalButtons.innerHTML = `<button id="modal-cancel-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">取消</button><button id="modal-login-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none">登入</button>`;
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
