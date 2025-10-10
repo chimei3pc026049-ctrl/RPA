@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPA 自動化流程申請單</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+        }
+        .request-card {
+            transition: all 0.2s ease-in-out;
+        }
+        .request-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 9999px;
+            text-transform: uppercase;
+        }
+        .status-pending { background-color: #fef3c7; color: #92400e; }
+        .status-approved { background-color: #d1fae5; color: #065f46; }
+        .status-rejected { background-color: #fee2e2; color: #991b1b; }
+        .status-processing { background-color: #e0e7ff; color: #3730a3; }
+        
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .animate-shake {
+          animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        
+        .tab-btn {
+            padding: 0.75rem 1rem;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .tab-btn:hover {
+            background-color: #f3f4f6;
+        }
+        .tab-btn.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+        /* Timeline styles for search results */
+        .timeline { list-style: none; padding: 0; }
+        .timeline-item { position: relative; padding-bottom: 1.5rem; padding-left: 2rem; }
+        .timeline-item:last-child { padding-bottom: 0; }
+        .timeline-marker { position: absolute; left: 0; top: 0; width: 20px; height: 20px; background: #fff; border: 4px solid #ccc; border-radius: 50%; z-index: 1; }
+        .timeline-item::before { content: ''; position: absolute; left: 9px; top: 20px; bottom: 0; width: 2px; background: #ccc; }
+        .timeline-item:last-child::before { display: none; }
+        .timeline-item.completed .timeline-marker { border-color: #22c55e; } /* green-500 */
+        .timeline-item.completed::before { background: #22c55e; }
+        .timeline-item.rejected .timeline-marker { border-color: #ef4444; } /* red-500 */
+        .timeline-item.rejected::before { background: #ef4444; }
+        .timeline-item.current .timeline-marker { border-color: #3b82f6; } /* blue-500 */
+        .timeline-item.current .timeline-marker::after {
+            content: ''; width: 12px; height: 12px; background: #3b82f6; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+        }
+
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="w-full max-w-5xl mx-auto p-4 sm:p-6">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-4">
+                 <img src="https://www.chimei.org.tw/main/cmh__file/main_site/logo/logo.svg" alt="奇美醫院 Logo" class="h-12 sm:h-16">
+                <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="flex flex-wrap border-b border-gray-200 bg-white rounded-t-lg">
+            <button data-tab="apply" class="tab-btn active text-sm sm:text-base font-medium">填寫申請</button>
+            <button data-tab="search" class="tab-btn text-sm sm:text-base font-medium">查詢進度</button>
+            <button data-tab="admin" class="tab-btn flex items-center text-sm sm:text-base font-medium">
+                管理後台
+                <span id="pending-count" class="ml-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full hidden"></span>
+            </button>
+        </nav>
+
+        <main>
+            <!-- Apply Tab -->
+            <div id="tab-content-apply" class="tab-content bg-white p-6 sm:p-8 rounded-b-2xl shadow-lg">
+                <form id="rpaForm" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 border-t pt-6">
+                        <div>
+                            <label for="applicantDate" class="block text-sm font-medium text-gray-700">申請日期</label>
+                            <input type="date" id="applicantDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="applicantName" class="block text-sm font-medium text-gray-700">申請人</label>
+                            <input type="text" id="applicantName" placeholder="請輸入姓名" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="unitCode" class="block text-sm font-medium text-gray-700">單位代號</label>
+                            <input type="text" id="unitCode" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                         <div class="md:col-span-2">
+                            <label for="applicantUnit" class="block text-sm font-medium text-gray-700">申請單位</label>
+                            <input type="text" id="applicantUnit" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="phoneExt" class="block text-sm font-medium text-gray-700">院內分機</label>
+                            <input type="text" id="phoneExt" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                         <div>
+                            <label for="phoneMobile" class="block text-sm font-medium text-gray-700">院內手機</label>
+                            <input type="text" id="phoneMobile" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="md:col-span-4">
+                            <label for="programName" class="block text-sm font-medium text-gray-700">院內程式名稱(代碼及名稱)</label>
+                            <input type="text" id="programName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="md:col-span-4">
+                            <label for="workFlow" class="block text-sm font-medium text-gray-700">請敘述作業流程</label>
+                            <textarea id="workFlow" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="請條列式說明..."></textarea>
+                        </div>
+                        <div class="md:col-span-4">
+                            <label for="applicationPurpose" class="block text-sm font-medium text-gray-700">申請目的</label>
+                            <textarea id="applicationPurpose" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="請敘述原流程耗費時間及人力，並評估預期效益..."></textarea>
+                        </div>
+                    </div>
+                    <div class="pt-6 text-center flex items-center justify-center space-x-4">
+                        <button type="submit" id="submit-btn" class="w-full sm:w-auto inline-flex justify-center py-3 px-12 border border-transparent shadow-sm text-base font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">提交申請</button>
+                        <button type="button" id="clear-btn" class="w-full sm:w-auto inline-flex justify-center py-3 px-8 border border-gray-300 shadow-sm text-base font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50">清空表單</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Search Tab -->
+            <div id="tab-content-search" class="tab-content hidden bg-white p-6 sm:p-8 rounded-b-2xl shadow-lg">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">查詢申請進度</h2>
+                <div class="flex items-center space-x-2 mb-6">
+                    <input type="text" id="search-input" placeholder="請輸入申請人姓名或申請單號進行查詢..." class="flex-grow block w-full px-4 py-2 bg-white border border-gray-300 rounded-full shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <button id="search-btn" class="py-2 px-6 border border-transparent shadow-sm text-base font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700">查詢</button>
+                </div>
+                <div id="search-results" class="space-y-4">
+                    <p class="text-center text-gray-500">請輸入查詢條件以檢視您的申請記錄。</p>
+                </div>
+            </div>
+
+            <!-- Admin Tab -->
+            <div id="tab-content-admin" class="tab-content hidden bg-white p-6 sm:p-8 rounded-b-2xl shadow-lg">
+                <div id="admin-view" class="hidden">
+                     <div class="flex flex-col sm:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
+                        <h2 class="text-xl font-bold text-gray-800">所有RPA申請</h2>
+                        <button id="logout-btn" class="py-2 px-4 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">登出</button>
+                    </div>
+                    <div id="requests-list" class="space-y-4">
+                        <!-- Requests will be injected here -->
+                    </div>
+                </div>
+                 <div id="admin-login-prompt" class="text-center py-10">
+                    <p class="text-gray-600">此為管理員專區，請先登入。</p>
+                    <button id="admin-login-prompt-btn" class="mt-4 py-2 px-6 border border-transparent shadow-sm text-base font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700">立即登入</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Custom Modal -->
+    <div id="custom-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div id="modal-box" class="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all">
+             <div class="p-6">
+                <h3 id="modal-title" class="text-lg font-medium text-gray-900">通知</h3>
+                <div id="modal-content" class="mt-2 text-sm text-gray-600 max-h-[60vh] overflow-y-auto"></div>
+             </div>
+             <div id="modal-buttons" class="mt-2 p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, serverTimestamp, setLogLevel, query, where, getDocs, deleteField } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.addEventListener('load', () => {
+            const state = {
+                isLoggedIn: false,
+                requests: [],
+                activeTab: 'apply',
+                db: null,
+                deepLinkedRequestId: null,
+            };
+
+            const form = document.getElementById('rpaForm');
+            const submitBtn = document.getElementById('submit-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            const adminView = document.getElementById('admin-view');
+            const adminLoginPrompt = document.getElementById('admin-login-prompt');
+            const adminLoginPromptBtn = document.getElementById('admin-login-prompt-btn');
+            const logoutBtn = document.getElementById('logout-btn');
+            const requestsList = document.getElementById('requests-list');
+            const pendingCountBadge = document.getElementById('pending-count');
+
+            const searchInput = document.getElementById('search-input');
+            const searchBtn = document.getElementById('search-btn');
+            const searchResults = document.getElementById('search-results');
+            
+            const modal = document.getElementById('custom-modal');
+            const modalBox = document.getElementById('modal-box');
+            const modalTitle = document.getElementById('modal-title');
+            const modalContent = document.getElementById('modal-content');
+            const modalButtons = document.getElementById('modal-buttons');
+
+            // --- MODAL FUNCTIONS ---
+            function hideModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+            function showAlert(message, title = '通知') {
+                modalTitle.textContent = title;
+                modalContent.innerHTML = `<p>${message}</p>`;
+                modalButtons.innerHTML = `<button id="modal-ok-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none">確定</button>`;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                document.getElementById('modal-ok-btn').onclick = hideModal;
+                document.getElementById('modal-ok-btn').focus();
+            }
+
+            function showConfirm(message, callback, title = '確認操作') {
+                modalTitle.textContent = title;
+                modalContent.innerHTML = `<p>${message}</p>`;
+                modalButtons.innerHTML = `
+                    <button id="modal-cancel-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">取消</button>
+                    <button id="modal-confirm-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none">確定</button>
+                `;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                const confirmBtn = document.getElementById('modal-confirm-btn');
+                const cancelBtn = document.getElementById('modal-cancel-btn');
+                confirmBtn.onclick = () => { hideModal(); if (callback) callback(true); };
+                cancelBtn.onclick = () => { hideModal(); if (callback) callback(false); };
+                confirmBtn.focus();
+            }
+
+            function showSuccessWithLink(message, link) {
+                modalTitle.textContent = '申請成功';
+                modalContent.innerHTML = `
+                    <p>${message}</p>
+                    <div class="mt-4">
+                        <label for="approval-link" class="block text-sm font-medium text-gray-700 text-left">專屬簽核連結</label>
+                        <input type="text" id="approval-link" readonly class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm" value="${link}">
+                    </div>
+                `;
+                modalButtons.innerHTML = `
+                    <button id="modal-copy-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none">複製連結</button>
+                    <button id="modal-close-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">關閉</button>
+                `;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+
+                const copyBtn = document.getElementById('modal-copy-btn');
+                const closeBtn = document.getElementById('modal-close-btn');
+                const linkInput = document.getElementById('approval-link');
+
+                copyBtn.onclick = () => {
+                    linkInput.select();
+                    document.execCommand('copy');
+                    copyBtn.textContent = '已複製！';
+                    setTimeout(() => { copyBtn.textContent = '複製連結'; }, 2000);
+                };
+                closeBtn.onclick = hideModal;
+            }
+
+            function promptLogin() {
+                modalTitle.textContent = '管理員登入';
+                modalContent.innerHTML = `<div class="space-y-4"><div><label for="modal-username" class="block text-sm font-medium text-gray-700 text-left">帳號</label><input type="text" id="modal-username" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" value="admin"></div><div><label for="modal-password" class="block text-sm font-medium text-gray-700 text-left">密碼</label><input type="password" id="modal-password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><p id="modal-error" class="text-sm text-red-600 h-4"></p></div>`;
+                modalButtons.innerHTML = `<button id="modal-cancel-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">取消</button><button id="modal-login-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none">登入</button>`;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                
+                const loginBtn = document.getElementById('modal-login-btn'), cancelBtn = document.getElementById('modal-cancel-btn'), passwordInput = document.getElementById('modal-password'), errorEl = document.getElementById('modal-error');
+                passwordInput.focus();
+                
+                const handleLogin = () => {
+                    if (passwordInput.value === 'cch2013') {
+                        hideModal(); state.isLoggedIn = true; showAlert('登入成功！'); updateUI(); setActiveTab('admin');
+                    } else {
+                        errorEl.textContent = '密碼錯誤！';
+                        modalBox.classList.add('animate-shake');
+                        setTimeout(() => modalBox.classList.remove('animate-shake'), 500);
+                    }
+                };
+                loginBtn.onclick = handleLogin;
+                passwordInput.onkeydown = (e) => { if (e.key === 'Enter') handleLogin(); };
+                cancelBtn.onclick = hideModal;
+            }
+            
+            function promptManagerAction(callback) {
+                modalTitle.textContent = '單位主管簽核';
+                modalContent.innerHTML = `
+                    <p class="mb-4">請輸入您的姓名以完成簽核。若要退回，請務必填寫原因。</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="modal-manager-name" class="block text-sm font-medium text-gray-700 text-left">主管姓名</label>
+                            <input type="text" id="modal-manager-name" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label for="modal-manager-remarks" class="block text-sm font-medium text-gray-700 text-left">退回原因 (非必填)</label>
+                            <textarea id="modal-manager-remarks" rows="3" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="若退回申請，請說明原因..."></textarea>
+                        </div>
+                        <p id="modal-error" class="text-sm text-red-600 h-4 mt-1"></p>
+                    </div>`;
+                modalButtons.innerHTML = `
+                    <button id="modal-cancel-btn" class="inline-flex justify-center rounded-md border px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">取消</button>
+                    <button id="modal-reject-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-sm font-medium text-white hover:bg-red-700">退回申請</button>
+                    <button id="modal-approve-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-sm font-medium text-white hover:bg-green-700">核准申請</button>`;
+                
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+
+                const approveBtn = document.getElementById('modal-approve-btn');
+                const rejectBtn = document.getElementById('modal-reject-btn');
+                const cancelBtn = document.getElementById('modal-cancel-btn');
+                const managerNameInput = document.getElementById('modal-manager-name');
+                const managerRemarksInput = document.getElementById('modal-manager-remarks');
+                const errorEl = document.getElementById('modal-error');
+                managerNameInput.focus();
+
+                const handleAction = (isApproved) => {
+                    const name = managerNameInput.value.trim();
+                    const remarks = managerRemarksInput.value.trim();
+                    if (!name) {
+                        errorEl.textContent = '主管姓名為必填欄位。';
+                        modalBox.classList.add('animate-shake');
+                        setTimeout(() => { modalBox.classList.remove('animate-shake'); }, 500);
+                        return;
+                    }
+                    if (!isApproved && !remarks) {
+                        errorEl.textContent = '退回申請必須填寫原因。';
+                        modalBox.classList.add('animate-shake');
+                        setTimeout(() => { modalBox.classList.remove('animate-shake'); }, 500);
+                        return;
+                    }
+                    hideModal();
+                    if (callback) callback({ approved: isApproved, name, remarks });
+                };
+
+                approveBtn.onclick = () => handleAction(true);
+                rejectBtn.onclick = () => handleAction(false);
+                cancelBtn.onclick = () => { hideModal(); if (callback) callback(null); };
+            }
+
+            // --- UI & TAB HANDLING ---
+            function setActiveTab(tabName) {
+                state.activeTab = tabName;
+                tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
+                tabContents.forEach(content => content.classList.toggle('hidden', content.id !== `tab-content-${tabName}`));
+                if (tabName === 'admin') updateAdminTabVisibility();
+            }
+
+            function updateAdminTabVisibility() {
+                const showAdminView = state.isLoggedIn && state.activeTab === 'admin';
+                adminView.classList.toggle('hidden', !showAdminView);
+                adminLoginPrompt.classList.toggle('hidden', showAdminView);
+            }
+
+            function updateUI() {
+                if (state.isLoggedIn) {
+                    const pendingCount = state.requests.filter(r => r.approvalStatus !== '已核准' && r.approvalStatus !== '已駁回').length;
+                    if (pendingCount > 0) {
+                        pendingCountBadge.textContent = pendingCount;
+                        pendingCountBadge.classList.remove('hidden');
+                    } else {
+                        pendingCountBadge.classList.add('hidden');
+                    }
+                } else {
+                    pendingCountBadge.classList.add('hidden');
+                }
+                updateAdminTabVisibility();
+                renderAdminList();
+            }
+
+            function getStatusBadgeClass(status) {
+                if (status === '已核准') return 'status-approved';
+                if (status === '已駁回') return 'status-rejected';
+                if (status === '待單位主管簽核') return 'status-pending';
+                return 'status-processing';
+            }
+
+            // --- RENDER FUNCTIONS ---
+            function renderAdminList() {
+                if (!state.isLoggedIn) return;
+                requestsList.innerHTML = '';
+                if(state.requests.length === 0) { 
+                    requestsList.innerHTML = `<p class="text-center text-gray-500">目前沒有任何申請記錄。</p>`; 
+                    return; 
+                }
+                
+                state.requests.forEach(req => {
+                    const card = document.createElement('div');
+                    card.className = 'request-card p-4 border rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3';
+                    const createdAt = req.createdAt?.toDate() ? req.createdAt.toDate().toLocaleDateString('zh-TW') : 'N/A';
+                    
+                    card.innerHTML = `
+                        <div class="flex-grow">
+                            <p class="font-semibold text-gray-800">${req.programName || '未命名程式'}</p>
+                            <p class="text-sm text-gray-600">申請人: ${req.applicantName || 'N/A'} (${req.applicantUnit || 'N/A'})</p>
+                            <p class="text-xs text-gray-400">單號: ${req.requestId || 'N/A'} | 申請日: ${createdAt}</p>
+                        </div>
+                        <div class="flex items-center flex-shrink-0 gap-4">
+                             <button class="text-sm text-blue-600 hover:text-blue-800 font-medium view-btn">檢視與簽核</button>
+                             <span class="status-badge ${getStatusBadgeClass(req.approvalStatus)}">${req.approvalStatus}</span>
+                        </div>`;
+                    
+                    card.querySelector('.view-btn').addEventListener('click', () => showApprovalModal(req.id));
+                    requestsList.appendChild(card);
+                });
+            }
+
+            function handleSearch() {
+                const query = searchInput.value.trim();
+                if (!query) { searchResults.innerHTML = `<p class="text-center text-gray-500">請輸入查詢條件。</p>`; return; }
+                const results = state.requests.filter(req => (req.applicantName && req.applicantName.includes(query)) || (req.requestId && req.requestId.includes(query)));
+                
+                searchResults.innerHTML = '';
+                if (results.length === 0) { searchResults.innerHTML = `<p class="text-center text-gray-500">找不到符合「${query}」的申請記錄。</p>`; return; }
+                
+                results.forEach(req => {
+                    const card = document.createElement('div');
+                    card.className = 'p-6 border rounded-lg bg-gray-50 space-y-4';
+                    
+                    const steps = [
+                        { name: '提出申請', data: req, completed: true, dateKey: 'createdAt', userKey: 'applicantName' },
+                        { name: '單位主管簽核', data: req.deptSupervisorData, completed: !!req.deptSupervisorData, rejected: req.deptSupervisorData?.approved === false },
+                        { name: '承辦人員評估', data: req.handlerData, completed: !!req.handlerData },
+                        { name: '承辦主管簽核', data: req.handlerSupervisorData, completed: !!req.handlerSupervisorData, rejected: req.handlerSupervisorData?.approved === false },
+                        { name: '核決主管簽核', data: req.finalApproverData, completed: !!req.finalApproverData, rejected: req.finalApproverData?.approved === false }
+                    ];
+
+                    let timelineHTML = '<ul class="timeline">';
+                    let currentStepFound = false;
+                    for(const step of steps) {
+                        let statusClass = '';
+                        let isCurrent = false;
+                        if(step.completed) statusClass = 'completed';
+                        if(step.rejected) statusClass = 'rejected';
+                        if(!step.completed && !currentStepFound && req.approvalStatus !== '已核准' && req.approvalStatus !== '已駁回') {
+                             statusClass = 'current';
+                             isCurrent = true;
+                             currentStepFound = true;
+                        }
+                        
+                        let content = `<p class="text-gray-500">待處理</p>`;
+                        if (step.data) {
+                            const date = step.data.date || (step.dateKey && req[step.dateKey]?.toDate()?.toLocaleDateString('zh-TW'));
+                            const user = step.data.name || (step.userKey && req[step.userKey]);
+                            const notes = step.data.evaluation || step.data.suggestion || '';
+                            content = `
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium ${step.rejected ? 'text-red-600' : ''}">${user || ''} ${step.rejected ? '駁回' : '完成'}</span>
+                                    <span class="text-xs text-gray-500">${date || ''}</span>
+                                </div>
+                                ${notes ? `<div class="mt-2 p-2 bg-gray-100 rounded-md text-gray-700 text-xs whitespace-pre-wrap">${notes}</div>` : ''}
+                            `;
+                        }
+                        if(isCurrent) content = `<p class="text-blue-600 font-semibold">目前階段</p>`;
+
+
+                        timelineHTML += `
+                            <li class="timeline-item ${statusClass}">
+                                <div class="timeline-marker"></div>
+                                <div class="timeline-content">
+                                    <h4 class="font-semibold text-gray-800">${step.name}</h4>
+                                    ${content}
+                                </div>
+                            </li>`;
+                    }
+                    timelineHTML += '</ul>';
+
+                    let managerActionsHTML = '';
+                    if (req.approvalStatus === '待單位主管簽核') {
+                        managerActionsHTML = `
+                            <div class="mt-4 pt-4 border-t text-center">
+                                <p class="text-sm text-gray-600 mb-2">此申請需要單位主管簽核</p>
+                                <button class="w-full sm:w-auto inline-flex justify-center py-2 px-6 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 approve-btn-search">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                    前往簽核
+                                </button>
+                            </div>`;
+                    }
+
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="font-semibold text-lg text-gray-800">${req.programName}</p>
+                                <span class="status-badge ${getStatusBadgeClass(req.approvalStatus)}">${req.approvalStatus}</span>
+                            </div>
+                            <p class="text-xs text-gray-500">申請單號: ${req.requestId}</p>
+                        </div>
+                        <div class="border-t pt-4">
+                            ${timelineHTML}
+                            ${managerActionsHTML}
+                        </div>`;
+                    searchResults.appendChild(card);
+
+                    const approveBtnSearch = card.querySelector('.approve-btn-search');
+                    if (approveBtnSearch) {
+                        approveBtnSearch.addEventListener('click', () => handleManagerApproval(req.id));
+                    }
+                });
+            }
+
+            // --- APPROVAL MODAL & FIRESTORE LOGIC ---
+            async function handleManagerApproval(id) {
+                if (!id || !state.db) return;
+                const req = state.requests.find(r => r.id === id);
+                if (!req || req.approvalStatus !== '待單位主管簽核') {
+                    showAlert('此申請單的狀態已變更，無法進行簽核。', '操作無效');
+                    return;
+                }
+                
+                promptManagerAction(async (action) => {
+                    if (action) { 
+                        const docRef = doc(state.db, 'rpa-requests', id);
+                        try {
+                            const stageData = { name: action.name, date: new Date().toLocaleDateString('zh-TW'), approved: action.approved };
+                            if (action.remarks) {
+                                stageData.suggestion = action.remarks;
+                            }
+
+                            if (action.approved) {
+                                await updateDoc(docRef, { 
+                                    approvalStatus: '待承辦人員評估',
+                                    deptSupervisorData: stageData
+                                });
+                                showAlert('申請單已簽核！將轉交承辦人員處理。');
+                            } else { 
+                                await updateDoc(docRef, { 
+                                    approvalStatus: '已駁回',
+                                    deptSupervisorData: stageData
+                                });
+                                showAlert('申請單已退回。');
+                            }
+                        } catch (error) {
+                            console.error("Error during manager action:", error);
+                            showAlert('操作失敗，請稍後再試。', '錯誤');
+                        }
+                    }
+                });
+            }
+
+            const approvalStages = {
+                "待單位主管簽核": { title: "單位主管簽核", field: "deptSupervisorData", nextStatus: "待承辦人員評估", hasNotes: false },
+                "待承辦人員評估": { title: "承辦人員評估", field: "handlerData", nextStatus: "待承辦主管簽核", hasNotes: true, notesLabel: "評估內容", isEvaluation: true, prevStatus: '待單位主管簽核', prevField: 'deptSupervisorData' },
+                "待承辦主管簽核": { title: "承辦主管簽核", field: "handlerSupervisorData", nextStatus: "待核決主管簽核", hasNotes: true, notesLabel: "建議", prevStatus: '待承辦人員評估', prevField: 'handlerData' },
+                "待核決主管簽核": { title: "核決主管簽核", field: "finalApproverData", nextStatus: "已核准", hasNotes: false, prevStatus: '待承辦主管簽核', prevField: 'handlerSupervisorData' }
+            };
+
+            async function handleReturnAction(id, stageInfo) {
+                if (!id || !stageInfo || !stageInfo.prevStatus || !stageInfo.prevField) return;
+
+                const updateData = {
+                    approvalStatus: stageInfo.prevStatus,
+                    [stageInfo.prevField]: deleteField()
+                };
+
+                try {
+                    const docRef = doc(state.db, 'rpa-requests', id);
+                    await updateDoc(docRef, updateData);
+                    hideModal();
+                    showAlert(`案件已成功退回至「${approvalStages[stageInfo.prevStatus].title}」。`);
+                } catch (error) {
+                    console.error("Error returning to previous step:", error);
+                    showAlert('操作失敗，請稍後再試。', '錯誤');
+                }
+            }
+            
+            function showApprovalModal(id) {
+                const req = state.requests.find(r => r.id === id);
+                if (!req) return;
+                
+                const currentStageInfo = approvalStages[req.approvalStatus];
+                const isFinalStage = req.approvalStatus === '已核准' || req.approvalStatus === '已駁回';
+
+                modalTitle.textContent = `檢視申請單: ${req.requestId}`;
+                let contentHTML = `
+                    <div class="space-y-4 text-sm">
+                        <h4 class="font-bold text-base text-gray-900 border-b pb-2">申請資訊</h4>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-2 p-2 bg-gray-50 rounded">
+                            <p><strong>申請人:</strong> ${req.applicantName}</p>
+                            <p><strong>申請單位:</strong> ${req.applicantUnit}</p>
+                            <p><strong>申請日期:</strong> ${req.applicantDate}</p>
+                             <p><strong>單位代號:</strong> ${req.unitCode}</p>
+                            <p><strong>院內分機:</strong> ${req.phoneExt}</p>
+                            <p><strong>院內手機:</strong> ${req.phoneMobile}</p>
+                            <p class="col-span-2"><strong>程式名稱:</strong> ${req.programName}</p>
+                        </div>
+                        <div><h5 class="font-medium">作業流程:</h5><div class="whitespace-pre-wrap p-2 bg-gray-50 rounded mt-1">${req.workFlow}</div></div>
+                        <div><h5 class="font-medium">申請目的:</h5><div class="whitespace-pre-wrap p-2 bg-gray-50 rounded mt-1">${req.applicationPurpose}</div></div>
+                    </div>`;
+
+                contentHTML += `<div class="mt-6 space-y-4"><h4 class="font-bold text-base text-gray-900 border-b pb-2">簽核歷程</h4>`;
+                for(const stage of Object.values(approvalStages)) {
+                    if(req[stage.field]) {
+                         contentHTML += `<div class="p-2 border rounded-md">
+                            <p class="font-semibold">${stage.title}</p>
+                            <p><strong>簽核人:</strong> ${req[stage.field].name} | <strong>日期:</strong> ${req[stage.field].date}</p>
+                            ${req[stage.field].evaluation ? `<p><strong>評估:</strong> <span class="whitespace-pre-wrap">${req[stage.field].evaluation}</span></p>` : ''}
+                            ${req[stage.field].suggestion ? `<p><strong>建議:</strong> <span class="whitespace-pre-wrap">${req[stage.field].suggestion}</span></p>` : ''}
+                            <p><strong>結果:</strong> <span class="font-bold ${req[stage.field].approved === false ? 'text-red-500' : 'text-green-500'}">${req[stage.field].approved === false ? '駁回' : '核准'}</span></p>
+                         </div>`;
+                    }
+                }
+                 contentHTML += `</div>`;
+                
+                if (currentStageInfo) {
+                    contentHTML += `
+                        <div class="mt-6 border-t pt-4">
+                            <h4 class="font-bold text-base text-blue-700">${currentStageInfo.title}</h4>
+                            <div class="space-y-3 mt-2">
+                                <div><label for="approverName" class="block text-xs font-medium text-gray-600">簽核人姓名</label><input type="text" id="approverName" class="mt-1 w-full p-2 border rounded-md"></div>
+                                ${currentStageInfo.hasNotes ? `<div><label for="approverNotes" class="block text-xs font-medium text-gray-600">${currentStageInfo.notesLabel}</label><textarea id="approverNotes" rows="3" class="mt-1 w-full p-2 border rounded-md"></textarea></div>` : ''}
+                            </div>
+                        </div>`;
+                }
+
+                modalContent.innerHTML = contentHTML;
+
+                let buttonsHTML = `<button id="modal-close-btn" class="inline-flex justify-center rounded-md border px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">關閉</button>`;
+                if (currentStageInfo) {
+                    if(currentStageInfo.prevStatus) {
+                        buttonsHTML += `<button id="modal-return-btn" class="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-yellow-100 text-sm font-medium text-yellow-800 hover:bg-yellow-200">退回上一步</button>`;
+                    }
+                    if (!currentStageInfo.isEvaluation) {
+                         buttonsHTML += `<button id="modal-reject-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-sm font-medium text-white hover:bg-red-700">駁回</button>`;
+                    }
+                    buttonsHTML += `<button id="modal-approve-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">${currentStageInfo.isEvaluation ? '完成評估' : '核准'}</button>`;
+                }
+                modalButtons.innerHTML = buttonsHTML;
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+
+                document.getElementById('modal-close-btn').onclick = hideModal;
+
+                const approveBtn = document.getElementById('modal-approve-btn');
+                const rejectBtn = document.getElementById('modal-reject-btn');
+                const returnBtn = document.getElementById('modal-return-btn');
+
+                if(returnBtn) {
+                     returnBtn.onclick = () => {
+                        showConfirm(`確定要將此案件退回至「${approvalStages[currentStageInfo.prevStatus].title}」嗎？`, (confirmed) => {
+                            if (confirmed) {
+                                handleReturnAction(id, currentStageInfo);
+                            }
+                        }, '確認退回');
+                    };
+                }
+
+                const handleApprovalAction = async (isApproved) => {
+                    const approverName = document.getElementById('approverName').value.trim();
+                    if (!approverName) { showAlert('請輸入簽核人姓名。'); return; }
+                    
+                    const updateData = { approvalStatus: isApproved ? currentStageInfo.nextStatus : '已駁回' };
+                    const stageData = { name: approverName, date: new Date().toLocaleDateString('zh-TW'), approved: isApproved };
+
+                    if (currentStageInfo.hasNotes) {
+                        const notes = document.getElementById('approverNotes').value.trim();
+                        if(currentStageInfo.isEvaluation) stageData.evaluation = notes;
+                        else stageData.suggestion = notes;
+                    }
+
+                    updateData[currentStageInfo.field] = stageData;
+
+                    try {
+                        const docRef = doc(state.db, 'rpa-requests', id);
+                        await updateDoc(docRef, updateData);
+                        hideModal();
+                        
+                        if (isApproved && currentStageInfo.nextStatus !== '已核准') {
+                            const nextStageTitle = approvalStages[currentStageInfo.nextStatus].title;
+                            const approvalLink = `${window.location.origin}${window.location.pathname}?requestId=${id}`;
+                            showSuccessWithLink(
+                                `此階段已完成！請將以下連結傳送給「${nextStageTitle}」進行簽核。`,
+                                approvalLink
+                            );
+                        } else {
+                            showAlert(`此申請已${isApproved ? '核准' : '駁回'}`);
+                        }
+                    } catch (error) {
+                        console.error("Error updating document:", error);
+                        showAlert('更新失敗，請稍後再試。', '錯誤');
+                    }
+                };
+
+                if(approveBtn) approveBtn.onclick = () => handleApprovalAction(true);
+                if(rejectBtn) rejectBtn.onclick = () => handleApprovalAction(false);
+            }
+
+            async function submitForm(e) {
+                e.preventDefault();
+                const applicantName = document.getElementById('applicantName').value.trim();
+                if (!applicantName) { showAlert('請填寫申請人姓名！', '資料不完整'); return; }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = '處理中...';
+
+                try {
+                    const today = new Date();
+                    const datePrefix = `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}`;
+                    const q = query(collection(state.db, "rpa-requests"), where("requestId", ">=", `${datePrefix}-`), where("requestId", "<", `${datePrefix}-~`));
+                    const querySnapshot = await getDocs(q);
+                    const newSeq = String(querySnapshot.size + 1).padStart(3, '0');
+                    const newRequestId = `${datePrefix}-${newSeq}`;
+                    
+                    const formData = {
+                        requestId: newRequestId,
+                        applicantDate: document.getElementById('applicantDate').value,
+                        applicantName,
+                        unitCode: document.getElementById('unitCode').value,
+                        applicantUnit: document.getElementById('applicantUnit').value,
+                        phoneExt: document.getElementById('phoneExt').value,
+                        phoneMobile: document.getElementById('phoneMobile').value,
+                        programName: document.getElementById('programName').value,
+                        workFlow: document.getElementById('workFlow').value,
+                        applicationPurpose: document.getElementById('applicationPurpose').value,
+                        approvalStatus: '待單位主管簽核',
+                        createdAt: serverTimestamp()
+                    };
+
+                    const newDocRef = await addDoc(collection(state.db, "rpa-requests"), formData);
+                    const approvalLink = `${window.location.origin}${window.location.pathname}?requestId=${newDocRef.id}`;
+                    showSuccessWithLink('申請已成功送出！請將以下連結傳送給您的單位主管進行簽核。', approvalLink);
+                    
+                    form.reset();
+                    document.getElementById('applicantDate').valueAsDate = new Date();
+                    setActiveTab('search');
+                    searchInput.value = formData.requestId;
+                    handleSearch();
+
+                } catch (error) {
+                    console.error("Form submission error: ", error);
+                    showAlert('提交失敗，請檢查您的網路連線。', '錯誤');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '提交申請';
+                }
+            }
+
+            // --- FIRESTORE INITIALIZATION ---
+            function listenForRequests() {
+                if (!state.db) return;
+                const requestsColRef = collection(state.db, 'rpa-requests');
+                onSnapshot(requestsColRef, (snapshot) => {
+                    state.requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    state.requests.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                    
+                    if (state.deepLinkedRequestId && state.requests.length > 0) {
+                        const request = state.requests.find(r => r.id === state.deepLinkedRequestId);
+                        if(request) {
+                            setActiveTab('search');
+                            searchInput.value = request.requestId;
+                            handleSearch();
+                            const resultEl = document.getElementById('search-results');
+                            if(resultEl) {
+                                setTimeout(() => {
+                                    const firstCard = resultEl.querySelector('.p-6');
+                                    if (firstCard) {
+                                        firstCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        firstCard.style.transition = 'background-color 0.5s';
+                                        firstCard.style.backgroundColor = '#eef2ff'; // indigo-50
+                                        setTimeout(() => { firstCard.style.backgroundColor = ''; }, 2000);
+                                    }
+                                }, 200);
+                            }
+                        }
+                        const url = new URL(window.location);
+                        url.searchParams.delete('requestId');
+                        window.history.replaceState({}, '', url);
+                        state.deepLinkedRequestId = null;
+                    }
+
+                    updateUI();
+                    if(state.activeTab === 'search') { handleSearch(); }
+                }, (error) => {
+                    console.error("Error listening for requests:", error);
+                });
+            }
+
+            function handleUrlParams() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const requestId = urlParams.get('requestId');
+                if (requestId) {
+                    state.deepLinkedRequestId = requestId;
+                }
+            }
+
+            async function initFirebase() {
+                try {
+                    const firebaseConfig = {
+                         apiKey: "AIzaSyAaF0b3-C8v_uaed0XtFKfWC7ElFNrrshc",
+                         authDomain: "carforms-dc898.firebaseapp.com",
+                         projectId: "carforms-dc898",
+                         storageBucket: "carforms-dc898.appspot.com",
+                         messagingSenderId: "1098158902069",
+                         appId: "1:1098158902069:web:ad2b2144e7c64184051a7c"
+                    };
+                    const app = initializeApp(firebaseConfig);
+                    state.db = getFirestore(app);
+                    const auth = getAuth(app);
+                    await signInAnonymously(auth);
+                    listenForRequests();
+                } catch (error) {
+                    console.error("Firebase Initialization Error:", error);
+                    showAlert('系統初始化失敗，請重新整理頁面。', '嚴重錯誤');
+                }
+            }
+
+            function init() {
+                handleUrlParams();
+                initFirebase();
+                setActiveTab('apply');
+                updateUI();
+                document.getElementById('applicantDate').valueAsDate = new Date();
+            }
+
+            // --- EVENT LISTENERS ---
+            form.addEventListener('submit', submitForm);
+            clearBtn.addEventListener('click', () => form.reset());
+            logoutBtn.addEventListener('click', () => { state.isLoggedIn = false; showAlert('已登出。'); updateUI(); setActiveTab('apply'); });
+            adminLoginPromptBtn.addEventListener('click', promptLogin);
+            tabButtons.forEach(btn => btn.addEventListener('click', () => setActiveTab(btn.dataset.tab)));
+            searchBtn.addEventListener('click', handleSearch);
+            searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(); });
+            
+            init();
+        });
+    </script>
+</body>
+</html>
+
