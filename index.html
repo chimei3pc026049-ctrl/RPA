@@ -75,7 +75,7 @@
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-4">
-                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16">
+                 <img src="https://www.chimei.org.tw/main/cmh__file/main_site/logo/logo.svg" alt="奇美醫院 Logo" class="h-12 sm:h-16">
                 <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
             </div>
         </header>
@@ -418,7 +418,7 @@
                 modalButtons.innerHTML = `
                     <button id="modal-cancel-btn" class="inline-flex justify-center rounded-md border px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">取消</button>
                     <button id="modal-reject-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-sm font-medium text-white hover:bg-red-700">退回申請</button>
-                    <button id="modal-approve-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-sm font-medium text-white hover:bg-green-700">核准申請</button>`;
+                    <button id="modal-approve-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-sm font-medium text-white hover:bg-green-700">簽章</button>`;
                 
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
@@ -805,11 +805,12 @@
                            (state.currentUser.role === currentStageInfo.requiredRole || state.currentUser.role === 'admin');
 
                 if (canApprove) {
+                    const approverNameValue = (currentStageInfo.requiredRole === 'handlerSupervisor' || currentStageInfo.requiredRole === 'finalApprover') ? '' : state.currentUser.name;
                     contentHTML += `
                         <div class="mt-6 border-t pt-4">
                             <h4 class="font-bold text-base text-blue-700">${currentStageInfo.title}</h4>
                             <div class="space-y-3 mt-2">
-                                <div><label for="approverName" class="block text-xs font-medium text-gray-600">簽核人姓名</label><input type="text" id="approverName" value="${state.currentUser.name}" class="mt-1 w-full p-2 border rounded-md"></div>
+                                <div><label for="approverName" class="block text-xs font-medium text-gray-600">簽核人姓名</label><input type="text" id="approverName" value="${approverNameValue}" class="mt-1 w-full p-2 border rounded-md"></div>
                                 ${currentStageInfo.hasNotes ? `<div><label for="approverNotes" class="block text-xs font-medium text-gray-600">${currentStageInfo.notesLabel}</label><textarea id="approverNotes" rows="3" class="mt-1 w-full p-2 border rounded-md"></textarea></div>` : ''}
                             </div>
                         </div>`;
@@ -822,10 +823,16 @@
                     if(currentStageInfo.prevStatus) {
                         buttonsHTML += `<button id="modal-return-btn" class="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-yellow-100 text-sm font-medium text-yellow-800 hover:bg-yellow-200">退回上一步</button>`;
                     }
+                    
+                    let approveButtonText = '核准';
+                    if (currentStageInfo.isEvaluation || currentStageInfo.requiredRole === 'handlerSupervisor') {
+                        approveButtonText = '陳核';
+                    }
+
                     if (!currentStageInfo.isEvaluation) {
                          buttonsHTML += `<button id="modal-reject-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-sm font-medium text-white hover:bg-red-700">駁回</button>`;
                     }
-                    buttonsHTML += `<button id="modal-approve-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">${currentStageInfo.isEvaluation ? '完成評估' : '核准'}</button>`;
+                    buttonsHTML += `<button id="modal-approve-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">${approveButtonText}</button>`;
                 }
                 modalButtons.innerHTML = buttonsHTML;
 
@@ -1028,4 +1035,6 @@
     </script>
 </body>
 </html>
+
+
 
