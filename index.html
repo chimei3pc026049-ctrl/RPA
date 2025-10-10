@@ -75,7 +75,7 @@
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-4">
-                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16">
+                 <img src="https://www.chimei.org.tw/main/cmh__file/main_site/logo/logo.svg" alt="奇美醫院 Logo" class="h-12 sm:h-16">
                 <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
             </div>
         </header>
@@ -184,13 +184,10 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, serverTimestamp, setLogLevel, query, where, getDocs, deleteField } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, serverTimestamp, setLogLevel, query, where, getDocs, deleteField, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.addEventListener('load', () => {
             // --- USER DATA STORE ---
-            // NOTE: This uses localStorage for password persistence across reloads.
-            // This is NOT secure for production use as data is saved in plain text.
-            // For a real application, a proper authentication backend (like Firebase Auth) should be used.
             let users = {
               'admin': { password: 'cch2013', role: 'admin', name: '系統管理員' },
               '891025': { password: '1234', role: 'finalApprover', name: '核決主管' },
@@ -211,7 +208,6 @@
                     const storedUsers = localStorage.getItem('rpaUsers');
                     if (storedUsers) {
                         const parsedUsers = JSON.parse(storedUsers);
-                        // Merge stored users with defaults to keep roles and names, but update passwords
                         Object.keys(users).forEach(username => {
                             if (parsedUsers[username] && parsedUsers[username].password) {
                                 users[username].password = parsedUsers[username].password;
@@ -223,7 +219,7 @@
                 }
             }
             
-            loadUsersFromLocalStorage(); // Load users on startup
+            loadUsersFromLocalStorage(); 
 
             const state = {
                 isLoggedIn: false,
@@ -392,9 +388,21 @@
                 };
             }
 
-            function promptManagerAction(callback) {
+            function promptManagerAction(req, callback) {
                 modalTitle.textContent = '單位主管簽核';
-                modalContent.innerHTML = `
+                const detailsHTML = `
+                    <div class="mb-4 border-b pb-4 space-y-2 text-sm">
+                        <h4 class="font-bold text-base text-gray-900">申請內容</h4>
+                        <p><strong>申請人:</strong> ${req.applicantName} (${req.applicantUnit})</p>
+                        <p><strong>申請日期:</strong> ${req.applicantDate}</p>
+                        <p><strong>程式名稱:</strong> ${req.programName}</p>
+                        <h5 class="font-medium mt-2">作業流程:</h5>
+                        <div class="whitespace-pre-wrap p-2 bg-gray-50 rounded text-xs max-h-24 overflow-y-auto">${req.workFlow}</div>
+                        <h5 class="font-medium mt-2">申請目的:</h5>
+                        <div class="whitespace-pre-wrap p-2 bg-gray-50 rounded text-xs max-h-24 overflow-y-auto">${req.applicationPurpose}</div>
+                    </div>
+                `;
+                modalContent.innerHTML = detailsHTML + `
                     <p class="mb-4">請輸入您的姓名以完成簽核。若要退回，請務必填寫原因。</p>
                     <div class="space-y-4">
                         <div>
@@ -481,8 +489,23 @@
                         setActiveTab('apply');
                     });
                     document.getElementById('change-password-btn').addEventListener('click', promptChangePassword);
+                    
+                    let pendingCount = 0;
+                    const { role } = state.currentUser;
+                    if (role === 'admin') {
+                        pendingCount = state.requests.filter(r => r.approvalStatus !== '已核准' && r.approvalStatus !== '已駁回').length;
+                    } else {
+                        const requiredStatusMap = {
+                            handler: '待承辦人員評估',
+                            handlerSupervisor: '待承辦主管簽核',
+                            finalApprover: '待核決主管簽核'
+                        };
+                        const requiredStatus = requiredStatusMap[role];
+                        if (requiredStatus) {
+                            pendingCount = state.requests.filter(r => r.approvalStatus === requiredStatus).length;
+                        }
+                    }
 
-                    const pendingCount = state.requests.filter(r => r.approvalStatus !== '已核准' && r.approvalStatus !== '已駁回').length;
                     if (pendingCount > 0) {
                         pendingCountBadge.textContent = pendingCount;
                         pendingCountBadge.classList.remove('hidden');
@@ -514,7 +537,6 @@
                 const { role } = state.currentUser;
                 let filteredRequests = state.requests;
 
-                // Filter requests based on user role
                 if (role !== 'admin') {
                     const requiredStatusMap = {
                         handler: '待承辦人員評估',
@@ -540,6 +562,11 @@
                     card.className = 'request-card p-4 border rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3';
                     const createdAt = req.createdAt?.toDate() ? req.createdAt.toDate().toLocaleDateString('zh-TW') : 'N/A';
                     
+                    let adminButtonsHTML = '';
+                    if (state.currentUser.role === 'admin') {
+                        adminButtonsHTML = `<button class="text-sm text-red-600 hover:text-red-800 font-medium delete-btn">刪除</button>`;
+                    }
+
                     card.innerHTML = `
                         <div class="flex-grow">
                             <p class="font-semibold text-gray-800">${req.programName || '未命名程式'}</p>
@@ -548,10 +575,18 @@
                         </div>
                         <div class="flex items-center flex-shrink-0 gap-4">
                              <button class="text-sm text-blue-600 hover:text-blue-800 font-medium view-btn">檢視與簽核</button>
+                             ${adminButtonsHTML}
                              <span class="status-badge ${getStatusBadgeClass(req.approvalStatus)}">${req.approvalStatus}</span>
                         </div>`;
                     
                     card.querySelector('.view-btn').addEventListener('click', () => showApprovalModal(req.id));
+                    const deleteBtn = card.querySelector('.delete-btn');
+                    if (deleteBtn) {
+                        deleteBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            deleteRequest(req.id, req.requestId);
+                        });
+                    }
                     requestsList.appendChild(card);
                 });
             }
@@ -650,6 +685,21 @@
             }
 
             // --- APPROVAL MODAL & FIRESTORE LOGIC ---
+            async function deleteRequest(id, requestId) {
+                showConfirm(`您確定要永久刪除申請單 ${requestId} 嗎？此操作無法復原。`, async (confirmed) => {
+                    if (confirmed) {
+                        try {
+                            const docRef = doc(state.db, 'rpa-requests', id);
+                            await deleteDoc(docRef);
+                            showAlert('申請單已成功刪除。');
+                        } catch (error) {
+                            console.error("Error deleting document:", error);
+                            showAlert('刪除失敗，請稍後再試。', '錯誤');
+                        }
+                    }
+                }, '確認刪除');
+            }
+
             async function handleManagerApproval(id) {
                 if (!id || !state.db) return;
                 const req = state.requests.find(r => r.id === id);
@@ -658,7 +708,7 @@
                     return;
                 }
                 
-                promptManagerAction(async (action) => {
+                promptManagerAction(req, async (action) => {
                     if (action) { 
                         const docRef = doc(state.db, 'rpa-requests', id);
                         try {
