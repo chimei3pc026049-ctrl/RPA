@@ -75,7 +75,7 @@
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-4">
-                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16">
+                 <img src="https://www.chimei.org.tw/main/cmh__file/main_site/logo/logo.svg" alt="奇美醫院 Logo" class="h-12 sm:h-16">
                 <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
             </div>
         </header>
@@ -740,10 +740,10 @@
             }
 
             const approvalStages = {
-                "待單位主管簽核": { title: "單位主管簽核", field: "deptSupervisorData", nextStatus: "待承辦人員評估", hasNotes: true, notesLabel: "簽核備註 (非必填)", isEvaluation: false, requiredRole: null },
-                "待承辦人員評估": { title: "承辦人員評估", field: "handlerData", nextStatus: "待承辦主管簽核", hasNotes: true, notesLabel: "評估內容", isEvaluation: true, prevStatus: '待單位主管簽核', prevField: 'deptSupervisorData', requiredRole: 'handler' },
-                "待承辦主管簽核": { title: "承辦主管簽核", field: "handlerSupervisorData", nextStatus: "待核決主管簽核", hasNotes: true, notesLabel: "建議", isEvaluation: false, prevStatus: '待承辦人員評估', prevField: 'handlerData', requiredRole: 'handlerSupervisor' },
-                "待核決主管簽核": { title: "核決主管簽核", field: "finalApproverData", nextStatus: "已核准", hasNotes: true, notesLabel: "簽核備註 (非必填)", isEvaluation: false, prevStatus: '待承辦主管簽核', prevField: 'handlerSupervisorData', requiredRole: 'finalApprover' }
+                "待單位主管簽核": { title: "單位主管簽核", field: "deptSupervisorData", nextStatus: "待承辦人員評估", hasNotes: true, notesLabel: "簽核備註 (非必填)", isEvaluation: false, requiredRole: null, successText: '已簽章' },
+                "待承辦人員評估": { title: "承辦人員評估", field: "handlerData", nextStatus: "待承辦主管簽核", hasNotes: true, notesLabel: "評估內容", isEvaluation: true, prevStatus: '待單位主管簽核', prevField: 'deptSupervisorData', requiredRole: 'handler', successText: '陳核' },
+                "待承辦主管簽核": { title: "承辦主管簽核", field: "handlerSupervisorData", nextStatus: "待核決主管簽核", hasNotes: true, notesLabel: "建議", isEvaluation: false, prevStatus: '待承辦人員評估', prevField: 'handlerData', requiredRole: 'handlerSupervisor', successText: '陳核' },
+                "待核決主管簽核": { title: "核決主管簽核", field: "finalApproverData", nextStatus: "已核准", hasNotes: true, notesLabel: "簽核備註 (非必填)", isEvaluation: false, prevStatus: '待承辦主管簽核', prevField: 'handlerSupervisorData', requiredRole: 'finalApprover', successText: '核准' }
             };
 
             async function handleReturnAction(id, stageInfo) {
@@ -789,14 +789,16 @@
                     </div>`;
 
                 contentHTML += `<div class="mt-6 space-y-4"><h4 class="font-bold text-base text-gray-900 border-b pb-2">簽核歷程</h4>`;
-                for(const stage of Object.values(approvalStages)) {
+                for(const stageKey in approvalStages) {
+                    const stage = approvalStages[stageKey];
                     if(req[stage.field]) {
+                         const resultText = req[stage.field].approved === false ? '駁回' : (stage.successText || '完成');
                          contentHTML += `<div class="p-2 border rounded-md">
                             <p class="font-semibold">${stage.title}</p>
                             <p><strong>簽核人:</strong> ${req[stage.field].name} | <strong>日期:</strong> ${req[stage.field].date}</p>
                             ${req[stage.field].evaluation ? `<p><strong>評估:</strong> <span class="whitespace-pre-wrap">${req[stage.field].evaluation}</span></p>` : ''}
                             ${req[stage.field].suggestion ? `<p><strong>建議:</strong> <span class="whitespace-pre-wrap">${req[stage.field].suggestion}</span></p>` : ''}
-                            <p><strong>結果:</strong> <span class="font-bold ${req[stage.field].approved === false ? 'text-red-500' : 'text-green-500'}">${req[stage.field].approved === false ? '駁回' : '核准'}</span></p>
+                            <p><strong>結果:</strong> <span class="font-bold ${req[stage.field].approved === false ? 'text-red-500' : 'text-green-500'}">${resultText}</span></p>
                          </div>`;
                     }
                 }
@@ -828,7 +830,7 @@
                     let approveButtonText = '核准';
                     if (currentStageInfo.isEvaluation) {
                         approveButtonText = '陳核';
-                    } else if (currentStageInfo.requiredRole === 'handlerSupervisor') {
+                    } else if (currentStageInfo.title === '單位主管簽核' || currentStageInfo.requiredRole === 'handlerSupervisor') {
                         approveButtonText = '簽章';
                     }
 
@@ -1038,3 +1040,4 @@
     </script>
 </body>
 </html>
+
