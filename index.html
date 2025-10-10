@@ -75,7 +75,7 @@
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-4">
-                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16">
+                 <img src="https://www.chimei.org.tw/main/cmh__file/main_site/logo/logo.svg" alt="奇美醫院 Logo" class="h-12 sm:h-16">
                 <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
             </div>
         </header>
@@ -155,8 +155,8 @@
             <div id="tab-content-admin" class="tab-content hidden bg-white p-6 sm:p-8 rounded-b-2xl shadow-lg">
                 <div id="admin-view" class="hidden">
                      <div class="flex flex-col sm:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
-                        <h2 class="text-xl font-bold text-gray-800">所有RPA申請</h2>
-                        <button id="logout-btn" class="py-2 px-4 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">登出</button>
+                        <h2 class="text-xl font-bold text-gray-800">RPA 申請案件列表</h2>
+                        <div id="user-info" class="text-right"></div>
                     </div>
                     <div id="requests-list" class="space-y-4">
                         <!-- Requests will be injected here -->
@@ -187,8 +187,17 @@
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, serverTimestamp, setLogLevel, query, where, getDocs, deleteField } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.addEventListener('load', () => {
+            // --- USER DATA STORE ---
+            const users = {
+              'admin': { password: 'cch2013', role: 'admin', name: '系統管理員' },
+              '891025': { password: '1234', role: 'finalApprover', name: '核決主管' },
+              'a003c1': { password: '1234', role: 'handler', name: '承辦人員' },
+              'a00535': { password: '1234', role: 'handlerSupervisor', name: '承辦單位主管' }
+            };
+
             const state = {
                 isLoggedIn: false,
+                currentUser: null,
                 requests: [],
                 activeTab: 'apply',
                 db: null,
@@ -205,7 +214,7 @@
             const adminView = document.getElementById('admin-view');
             const adminLoginPrompt = document.getElementById('admin-login-prompt');
             const adminLoginPromptBtn = document.getElementById('admin-login-prompt-btn');
-            const logoutBtn = document.getElementById('logout-btn');
+            const userInfoDiv = document.getElementById('user-info');
             const requestsList = document.getElementById('requests-list');
             const pendingCountBadge = document.getElementById('pending-count');
 
@@ -278,19 +287,28 @@
 
             function promptLogin() {
                 modalTitle.textContent = '管理員登入';
-                modalContent.innerHTML = `<div class="space-y-4"><div><label for="modal-username" class="block text-sm font-medium text-gray-700 text-left">帳號</label><input type="text" id="modal-username" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" value="admin"></div><div><label for="modal-password" class="block text-sm font-medium text-gray-700 text-left">密碼</label><input type="password" id="modal-password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><p id="modal-error" class="text-sm text-red-600 h-4"></p></div>`;
+                modalContent.innerHTML = `<div class="space-y-4"><div><label for="modal-username" class="block text-sm font-medium text-gray-700 text-left">帳號</label><input type="text" id="modal-username" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><div><label for="modal-password" class="block text-sm font-medium text-gray-700 text-left">密碼</label><input type="password" id="modal-password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><p id="modal-error" class="text-sm text-red-600 h-4"></p></div>`;
                 modalButtons.innerHTML = `<button id="modal-cancel-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">取消</button><button id="modal-login-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none">登入</button>`;
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
                 
-                const loginBtn = document.getElementById('modal-login-btn'), cancelBtn = document.getElementById('modal-cancel-btn'), passwordInput = document.getElementById('modal-password'), errorEl = document.getElementById('modal-error');
-                passwordInput.focus();
+                const loginBtn = document.getElementById('modal-login-btn'), cancelBtn = document.getElementById('modal-cancel-btn'), usernameInput = document.getElementById('modal-username'), passwordInput = document.getElementById('modal-password'), errorEl = document.getElementById('modal-error');
+                usernameInput.focus();
                 
                 const handleLogin = () => {
-                    if (passwordInput.value === 'cch2013') {
-                        hideModal(); state.isLoggedIn = true; showAlert('登入成功！'); updateUI(); setActiveTab('admin');
+                    const username = usernameInput.value.trim();
+                    const password = passwordInput.value;
+                    const user = users[username];
+
+                    if (user && user.password === password) {
+                        hideModal(); 
+                        state.isLoggedIn = true; 
+                        state.currentUser = { username, ...user };
+                        showAlert('登入成功！'); 
+                        updateUI(); 
+                        setActiveTab('admin');
                     } else {
-                        errorEl.textContent = '密碼錯誤！';
+                        errorEl.textContent = '帳號或密碼錯誤！';
                         modalBox.classList.add('animate-shake');
                         setTimeout(() => modalBox.classList.remove('animate-shake'), 500);
                     }
@@ -300,6 +318,49 @@
                 cancelBtn.onclick = hideModal;
             }
             
+             function promptChangePassword() {
+                modalTitle.textContent = '修改密碼';
+                modalContent.innerHTML = `
+                    <div class="space-y-4">
+                        <div><label for="old-password" class="block text-sm font-medium text-gray-700 text-left">舊密碼</label><input type="password" id="old-password" class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
+                        <div><label for="new-password" class="block text-sm font-medium text-gray-700 text-left">新密碼</label><input type="password" id="new-password" class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
+                        <div><label for="confirm-password" class="block text-sm font-medium text-gray-700 text-left">確認新密碼</label><input type="password" id="confirm-password" class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
+                        <p id="modal-error" class="text-sm text-red-600 h-4"></p>
+                    </div>`;
+                modalButtons.innerHTML = `<button id="modal-cancel-btn" class="rounded-md border px-4 py-2 bg-white text-sm font-medium">取消</button><button id="modal-confirm-change-btn" class="rounded-md border border-transparent px-4 py-2 bg-blue-600 text-sm font-medium text-white">確認修改</button>`;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+
+                const confirmBtn = document.getElementById('modal-confirm-change-btn');
+                const cancelBtn = document.getElementById('modal-cancel-btn');
+                const oldPasswordInput = document.getElementById('old-password');
+                const newPasswordInput = document.getElementById('new-password');
+                const confirmPasswordInput = document.getElementById('confirm-password');
+                const errorEl = document.getElementById('modal-error');
+                oldPasswordInput.focus();
+
+                cancelBtn.onclick = hideModal;
+                confirmBtn.onclick = () => {
+                    const oldPass = oldPasswordInput.value;
+                    const newPass = newPasswordInput.value;
+                    const confirmPass = confirmPasswordInput.value;
+                    const currentUser = state.currentUser;
+
+                    if (users[currentUser.username].password !== oldPass) {
+                        errorEl.textContent = '舊密碼不正確！'; return;
+                    }
+                    if (!newPass || newPass.length < 4) {
+                        errorEl.textContent = '新密碼長度至少需要4個字元。'; return;
+                    }
+                    if (newPass !== confirmPass) {
+                        errorEl.textContent = '兩次輸入的新密碼不相符。'; return;
+                    }
+                    users[currentUser.username].password = newPass;
+                    hideModal();
+                    showAlert('密碼已成功修改！');
+                };
+            }
+
             function promptManagerAction(callback) {
                 modalTitle.textContent = '單位主管簽核';
                 modalContent.innerHTML = `
@@ -310,8 +371,8 @@
                             <input type="text" id="modal-manager-name" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
                         </div>
                         <div>
-                            <label for="modal-manager-remarks" class="block text-sm font-medium text-gray-700 text-left">退回原因 (非必填)</label>
-                            <textarea id="modal-manager-remarks" rows="3" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="若退回申請，請說明原因..."></textarea>
+                            <label for="modal-manager-remarks" class="block text-sm font-medium text-gray-700 text-left">簽核備註</label>
+                            <textarea id="modal-manager-remarks" rows="3" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="簽核備註 (非必填)，若退回申請請務必說明原因..."></textarea>
                         </div>
                         <p id="modal-error" class="text-sm text-red-600 h-4 mt-1"></p>
                     </div>`;
@@ -370,7 +431,26 @@
             }
 
             function updateUI() {
-                if (state.isLoggedIn) {
+                if (state.isLoggedIn && state.currentUser) {
+                    userInfoDiv.innerHTML = `
+                        <div class="flex items-center gap-4">
+                             <div>
+                                <p class="font-semibold text-sm text-gray-800">${state.currentUser.name}</p>
+                                <p class="text-xs text-gray-500">${state.currentUser.username}</p>
+                            </div>
+                            <button id="change-password-btn" class="text-sm text-gray-600 hover:text-blue-600">修改密碼</button>
+                            <button id="logout-btn" class="py-2 px-4 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700">登出</button>
+                        </div>
+                    `;
+                    document.getElementById('logout-btn').addEventListener('click', () => {
+                        state.isLoggedIn = false;
+                        state.currentUser = null;
+                        showAlert('已登出。'); 
+                        updateUI(); 
+                        setActiveTab('apply');
+                    });
+                    document.getElementById('change-password-btn').addEventListener('click', promptChangePassword);
+
                     const pendingCount = state.requests.filter(r => r.approvalStatus !== '已核准' && r.approvalStatus !== '已駁回').length;
                     if (pendingCount > 0) {
                         pendingCountBadge.textContent = pendingCount;
@@ -379,6 +459,7 @@
                         pendingCountBadge.classList.add('hidden');
                     }
                 } else {
+                    userInfoDiv.innerHTML = '';
                     pendingCountBadge.classList.add('hidden');
                 }
                 updateAdminTabVisibility();
@@ -394,14 +475,36 @@
 
             // --- RENDER FUNCTIONS ---
             function renderAdminList() {
-                if (!state.isLoggedIn) return;
+                if (!state.isLoggedIn || !state.currentUser) {
+                    requestsList.innerHTML = '';
+                    return;
+                };
+
+                const { role } = state.currentUser;
+                let filteredRequests = state.requests;
+
+                // Filter requests based on user role
+                if (role !== 'admin') {
+                    const requiredStatusMap = {
+                        handler: '待承辦人員評估',
+                        handlerSupervisor: '待承辦主管簽核',
+                        finalApprover: '待核決主管簽核'
+                    };
+                    const requiredStatus = requiredStatusMap[role];
+                    if (requiredStatus) {
+                        filteredRequests = state.requests.filter(req => req.approvalStatus === requiredStatus);
+                    } else {
+                        filteredRequests = []; 
+                    }
+                }
+                
                 requestsList.innerHTML = '';
-                if(state.requests.length === 0) { 
-                    requestsList.innerHTML = `<p class="text-center text-gray-500">目前沒有任何申請記錄。</p>`; 
+                if(filteredRequests.length === 0) { 
+                    requestsList.innerHTML = `<p class="text-center text-gray-500">目前沒有待您處理的申請案件。</p>`; 
                     return; 
                 }
                 
-                state.requests.forEach(req => {
+                filteredRequests.forEach(req => {
                     const card = document.createElement('div');
                     card.className = 'request-card p-4 border rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3';
                     const createdAt = req.createdAt?.toDate() ? req.createdAt.toDate().toLocaleDateString('zh-TW') : 'N/A';
@@ -555,10 +658,10 @@
             }
 
             const approvalStages = {
-                "待單位主管簽核": { title: "單位主管簽核", field: "deptSupervisorData", nextStatus: "待承辦人員評估", hasNotes: false },
-                "待承辦人員評估": { title: "承辦人員評估", field: "handlerData", nextStatus: "待承辦主管簽核", hasNotes: true, notesLabel: "評估內容", isEvaluation: true, prevStatus: '待單位主管簽核', prevField: 'deptSupervisorData' },
-                "待承辦主管簽核": { title: "承辦主管簽核", field: "handlerSupervisorData", nextStatus: "待核決主管簽核", hasNotes: true, notesLabel: "建議", prevStatus: '待承辦人員評估', prevField: 'handlerData' },
-                "待核決主管簽核": { title: "核決主管簽核", field: "finalApproverData", nextStatus: "已核准", hasNotes: false, prevStatus: '待承辦主管簽核', prevField: 'handlerSupervisorData' }
+                "待單位主管簽核": { title: "單位主管簽核", field: "deptSupervisorData", nextStatus: "待承辦人員評估", hasNotes: true, notesLabel: "簽核備註 (非必填)", isEvaluation: false, requiredRole: null },
+                "待承辦人員評估": { title: "承辦人員評估", field: "handlerData", nextStatus: "待承辦主管簽核", hasNotes: true, notesLabel: "評估內容", isEvaluation: true, prevStatus: '待單位主管簽核', prevField: 'deptSupervisorData', requiredRole: 'handler' },
+                "待承辦主管簽核": { title: "承辦主管簽核", field: "handlerSupervisorData", nextStatus: "待核決主管簽核", hasNotes: true, notesLabel: "建議", isEvaluation: false, prevStatus: '待承辦人員評估', prevField: 'handlerData', requiredRole: 'handlerSupervisor' },
+                "待核決主管簽核": { title: "核決主管簽核", field: "finalApproverData", nextStatus: "已核准", hasNotes: true, notesLabel: "簽核備註 (非必填)", isEvaluation: false, prevStatus: '待承辦主管簽核', prevField: 'handlerSupervisorData', requiredRole: 'finalApprover' }
             };
 
             async function handleReturnAction(id, stageInfo) {
@@ -585,7 +688,6 @@
                 if (!req) return;
                 
                 const currentStageInfo = approvalStages[req.approvalStatus];
-                const isFinalStage = req.approvalStatus === '已核准' || req.approvalStatus === '已駁回';
 
                 modalTitle.textContent = `檢視申請單: ${req.requestId}`;
                 let contentHTML = `
@@ -618,12 +720,15 @@
                 }
                  contentHTML += `</div>`;
                 
-                if (currentStageInfo) {
+                const canApprove = state.isLoggedIn && currentStageInfo &&
+                           (state.currentUser.role === currentStageInfo.requiredRole || state.currentUser.role === 'admin');
+
+                if (canApprove) {
                     contentHTML += `
                         <div class="mt-6 border-t pt-4">
                             <h4 class="font-bold text-base text-blue-700">${currentStageInfo.title}</h4>
                             <div class="space-y-3 mt-2">
-                                <div><label for="approverName" class="block text-xs font-medium text-gray-600">簽核人姓名</label><input type="text" id="approverName" class="mt-1 w-full p-2 border rounded-md"></div>
+                                <div><label for="approverName" class="block text-xs font-medium text-gray-600">簽核人姓名</label><input type="text" id="approverName" value="${state.currentUser.name}" class="mt-1 w-full p-2 border rounded-md"></div>
                                 ${currentStageInfo.hasNotes ? `<div><label for="approverNotes" class="block text-xs font-medium text-gray-600">${currentStageInfo.notesLabel}</label><textarea id="approverNotes" rows="3" class="mt-1 w-full p-2 border rounded-md"></textarea></div>` : ''}
                             </div>
                         </div>`;
@@ -632,7 +737,7 @@
                 modalContent.innerHTML = contentHTML;
 
                 let buttonsHTML = `<button id="modal-close-btn" class="inline-flex justify-center rounded-md border px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">關閉</button>`;
-                if (currentStageInfo) {
+                if (canApprove) {
                     if(currentStageInfo.prevStatus) {
                         buttonsHTML += `<button id="modal-return-btn" class="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-yellow-100 text-sm font-medium text-yellow-800 hover:bg-yellow-200">退回上一步</button>`;
                     }
@@ -832,7 +937,6 @@
             // --- EVENT LISTENERS ---
             form.addEventListener('submit', submitForm);
             clearBtn.addEventListener('click', () => form.reset());
-            logoutBtn.addEventListener('click', () => { state.isLoggedIn = false; showAlert('已登出。'); updateUI(); setActiveTab('apply'); });
             adminLoginPromptBtn.addEventListener('click', promptLogin);
             tabButtons.forEach(btn => btn.addEventListener('click', () => setActiveTab(btn.dataset.tab)));
             searchBtn.addEventListener('click', handleSearch);
