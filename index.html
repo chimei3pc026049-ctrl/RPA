@@ -75,7 +75,7 @@
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-4">
-                 <img src="https://placehold.co/64x64/3b82f6/white?text=CCH" alt="奇美醫院 Logo" class="h-12 sm:h-16 rounded-lg">
+                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16 rounded-lg">
                 <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
             </div>
         </header>
@@ -185,6 +185,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, serverTimestamp, setLogLevel, query, where, getDocs, deleteField, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
         window.addEventListener('load', () => {
             // --- USER DATA STORE ---
@@ -474,10 +475,10 @@
                     userInfoDiv.innerHTML = `
                         <div class="flex items-center gap-4">
                              <div>
-                                <p class="font-semibold text-sm text-gray-800">${state.currentUser.name}</p>
-                                <p class="text-xs text-gray-500">${state.currentUser.username}</p>
-                            </div>
-                            <button id="change-password-btn" class="text-sm text-gray-600 hover:text-blue-600">修改密碼</button>
+                                 <p class="font-semibold text-sm text-gray-800">${state.currentUser.name}</p>
+                                 <p class="text-xs text-gray-500">${state.currentUser.username}</p>
+                             </div>
+                             <button id="change-password-btn" class="text-sm text-gray-600 hover:text-blue-600">修改密碼</button>
                             <button id="logout-btn" class="py-2 px-4 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700">登出</button>
                         </div>
                     `;
@@ -1000,20 +1001,26 @@
 
             async function initFirebase() {
                 try {
-                    // *** SECURITY FIX ***
-                    // The Firebase config is now loaded from a secure environment variable `__firebase_config`
-                    // This prevents the API key from being exposed in the source code.
-                    if (typeof __firebase_config === 'undefined') {
-                        console.error("Firebase config is not available. Please ensure the '__firebase_config' environment variable is set.");
-                        showAlert('系統設定錯誤，無法連接至資料庫，請聯繫管理員。', '嚴重錯誤');
-                        return;
-                    }
-                    const firebaseConfig = JSON.parse(__firebase_config);
+                    // Your web app's Firebase configuration from your request
+                    const firebaseConfig = {
+                        apiKey: "AIzaSyAaF0b3-C8v_uaed0XtFKfWC7ElFNrrshc",
+                        authDomain: "carforms-dc898.firebaseapp.com",
+                        projectId: "carforms-dc898",
+                        storageBucket: "carforms-dc898.firebasestorage.app",
+                        messagingSenderId: "1098158902069",
+                        appId: "1:1098158902069:web:3ade4f7a607126a7051a7c",
+                        measurementId: "G-PM7NV0LD27"
+                    };
+
+                    // Initialize Firebase
                     const app = initializeApp(firebaseConfig);
+                    const analytics = getAnalytics(app); // Initialize Analytics
+                    
                     state.db = getFirestore(app);
                     const auth = getAuth(app);
                     await signInAnonymously(auth);
                     listenForRequests();
+
                 } catch (error) {
                     console.error("Firebase Initialization Error:", error);
                     showAlert('系統初始化失敗，請重新整理頁面。', '嚴重錯誤');
