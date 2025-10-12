@@ -75,7 +75,7 @@
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-4">
-                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16">
+                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16 rounded-lg">
                 <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
             </div>
         </header>
@@ -805,7 +805,7 @@
                  contentHTML += `</div>`;
                 
                 const canApprove = state.isLoggedIn && currentStageInfo &&
-                           (state.currentUser.role === currentStageInfo.requiredRole || state.currentUser.role === 'admin');
+                               (state.currentUser.role === currentStageInfo.requiredRole || state.currentUser.role === 'admin');
 
                 if (canApprove) {
                     const approverNameValue = (currentStageInfo.requiredRole === 'handlerSupervisor' || currentStageInfo.requiredRole === 'finalApprover') ? '' : state.currentUser.name;
@@ -1000,14 +1000,15 @@
 
             async function initFirebase() {
                 try {
-                    const firebaseConfig = {
-                         apiKey: "AIzaSyAaF0b3-C8v_uaed0XtFKfWC7ElFNrrshc",
-                         authDomain: "carforms-dc898.firebaseapp.com",
-                         projectId: "carforms-dc898",
-                         storageBucket: "carforms-dc898.appspot.com",
-                         messagingSenderId: "1098158902069",
-                         appId: "1:1098158902069:web:ad2b2144e7c64184051a7c"
-                    };
+                    // *** SECURITY FIX ***
+                    // The Firebase config is now loaded from a secure environment variable `__firebase_config`
+                    // This prevents the API key from being exposed in the source code.
+                    if (typeof __firebase_config === 'undefined') {
+                        console.error("Firebase config is not available. Please ensure the '__firebase_config' environment variable is set.");
+                        showAlert('系統設定錯誤，無法連接至資料庫，請聯繫管理員。', '嚴重錯誤');
+                        return;
+                    }
+                    const firebaseConfig = JSON.parse(__firebase_config);
                     const app = initializeApp(firebaseConfig);
                     state.db = getFirestore(app);
                     const auth = getAuth(app);
@@ -1040,4 +1041,3 @@
     </script>
 </body>
 </html>
-
