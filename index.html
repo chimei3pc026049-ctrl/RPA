@@ -1,1050 +1,270 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RPA 自動化流程申請單</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
-        }
-        .request-card {
-            transition: all 0.2s ease-in-out;
-        }
-        .request-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.6rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            border-radius: 9999px;
-            text-transform: uppercase;
-        }
-        .status-pending { background-color: #fef3c7; color: #92400e; }
-        .status-approved { background-color: #d1fae5; color: #065f46; }
-        .status-rejected { background-color: #fee2e2; color: #991b1b; }
-        .status-processing { background-color: #e0e7ff; color: #3730a3; }
-        
-        @keyframes shake {
-          10%, 90% { transform: translate3d(-1px, 0, 0); }
-          20%, 80% { transform: translate3d(2px, 0, 0); }
-          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-          40%, 60% { transform: translate3d(4px, 0, 0); }
-        }
-        .animate-shake {
-          animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-        }
-        
-        .tab-btn {
-            padding: 0.75rem 1rem;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s ease;
-        }
-        .tab-btn:hover {
-            background-color: #f3f4f6;
-        }
-        .tab-btn.active {
-            color: #2563eb;
-            border-bottom-color: #2563eb;
-        }
-        /* Timeline styles for search results */
-        .timeline { list-style: none; padding: 0; }
-        .timeline-item { position: relative; padding-bottom: 1.5rem; padding-left: 2rem; }
-        .timeline-item:last-child { padding-bottom: 0; }
-        .timeline-marker { position: absolute; left: 0; top: 0; width: 20px; height: 20px; background: #fff; border: 4px solid #ccc; border-radius: 50%; z-index: 1; }
-        .timeline-item::before { content: ''; position: absolute; left: 9px; top: 20px; bottom: 0; width: 2px; background: #ccc; }
-        .timeline-item:last-child::before { display: none; }
-        .timeline-item.completed .timeline-marker { border-color: #22c55e; } /* green-500 */
-        .timeline-item.completed::before { background: #22c55e; }
-        .timeline-item.rejected .timeline-marker { border-color: #ef4444; } /* red-500 */
-        .timeline-item.rejected::before { background: #ef4444; }
-        .timeline-item.current .timeline-marker { border-color: #3b82f6; } /* blue-500 */
-        .timeline-item.current .timeline-marker::after {
-            content: ''; width: 12px; height: 12px; background: #3b82f6; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-        }
+import React from 'react';
+import { 
+  Cpu, Rocket, Target, Users, Calendar, MapPin, Award, 
+  Clock, CheckCircle2, ChevronRight, Zap, PlayCircle, Trophy, MonitorSmartphone, DownloadCloud
+} from 'lucide-react';
 
-    </style>
-</head>
-<body class="bg-gray-100 min-h-screen">
-    <div class="w-full max-w-5xl mx-auto p-4 sm:p-6">
-        <!-- Header -->
-        <header class="flex justify-between items-center mb-6">
-            <div class="flex items-center gap-4">
-                 <img src="chi_mei_hospital_Chiali_blue.png" alt="奇美醫院 Logo" class="h-12 sm:h-16 rounded-lg">
-                <h1 class="text-xl sm:text-3xl font-bold text-gray-800">RPA 自動化流程申請單</h1>
+const App = () => {
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-600 font-sans selection:bg-cyan-100 selection:text-cyan-900">
+      {/* Navbar */}
+      <nav className="border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-500/20">
+              <Zap className="text-white w-6 h-6" />
             </div>
-        </header>
-
-        <!-- Tab Navigation -->
-        <nav class="flex flex-wrap border-b border-gray-200 bg-white rounded-t-lg">
-            <button data-tab="apply" class="tab-btn active text-sm sm:text-base font-medium">填寫申請</button>
-            <button data-tab="search" class="tab-btn text-sm sm:text-base font-medium">查詢進度</button>
-            <button data-tab="admin" class="tab-btn flex items-center text-sm sm:text-base font-medium">
-                管理後台
-                <span id="pending-count" class="ml-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full hidden"></span>
-            </button>
-        </nav>
-
-        <main>
-            <!-- Apply Tab -->
-            <div id="tab-content-apply" class="tab-content bg-white p-6 sm:p-8 rounded-b-2xl shadow-lg">
-                <form id="rpaForm" class="space-y-6">
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 border-t pt-6">
-                        <div>
-                            <label for="applicantDate" class="block text-sm font-medium text-gray-700">申請日期</label>
-                            <input type="date" id="applicantDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                        <div class="md:col-span-2">
-                            <label for="applicantName" class="block text-sm font-medium text-gray-700">申請人</label>
-                            <input type="text" id="applicantName" placeholder="請輸入姓名" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label for="unitCode" class="block text-sm font-medium text-gray-700">單位代號</label>
-                            <input type="text" id="unitCode" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                         <div class="md:col-span-2">
-                            <label for="applicantUnit" class="block text-sm font-medium text-gray-700">申請單位</label>
-                            <input type="text" id="applicantUnit" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label for="phoneExt" class="block text-sm font-medium text-gray-700">院內分機</label>
-                            <input type="text" id="phoneExt" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                         <div>
-                            <label for="phoneMobile" class="block text-sm font-medium text-gray-700">院內手機</label>
-                            <input type="text" id="phoneMobile" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                        <div class="md:col-span-4">
-                            <label for="programName" class="block text-sm font-medium text-gray-700">院內程式名稱(代碼及名稱)</label>
-                            <input type="text" id="programName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                        <div class="md:col-span-4">
-                            <label for="workFlow" class="block text-sm font-medium text-gray-700">請敘述作業流程</label>
-                            <textarea id="workFlow" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="請條列式說明..."></textarea>
-                        </div>
-                        <div class="md:col-span-4">
-                            <label for="applicationPurpose" class="block text-sm font-medium text-gray-700">申請目的</label>
-                            <textarea id="applicationPurpose" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="請敘述原流程耗費時間及人力，並評估預期效益..."></textarea>
-                        </div>
-                    </div>
-                    <div class="pt-6 text-center flex items-center justify-center space-x-4">
-                        <button type="submit" id="submit-btn" class="w-full sm:w-auto inline-flex justify-center py-3 px-12 border border-transparent shadow-sm text-base font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">提交申請</button>
-                        <button type="button" id="clear-btn" class="w-full sm:w-auto inline-flex justify-center py-3 px-8 border border-gray-300 shadow-sm text-base font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50">清空表單</button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Search Tab -->
-            <div id="tab-content-search" class="tab-content hidden bg-white p-6 sm:p-8 rounded-b-2xl shadow-lg">
-                <h2 class="text-xl font-bold text-gray-800 mb-6">查詢申請進度</h2>
-                <div class="flex items-center space-x-2 mb-6">
-                    <input type="text" id="search-input" placeholder="請輸入申請人姓名或申請單號進行查詢..." class="flex-grow block w-full px-4 py-2 bg-white border border-gray-300 rounded-full shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                    <button id="search-btn" class="py-2 px-6 border border-transparent shadow-sm text-base font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700">查詢</button>
-                </div>
-                <div id="search-results" class="space-y-4">
-                    <p class="text-center text-gray-500">請輸入查詢條件以檢視您的申請記錄。</p>
-                </div>
-            </div>
-
-            <!-- Admin Tab -->
-            <div id="tab-content-admin" class="tab-content hidden bg-white p-6 sm:p-8 rounded-b-2xl shadow-lg">
-                <div id="admin-view" class="hidden">
-                     <div class="flex flex-col sm:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
-                        <h2 class="text-xl font-bold text-gray-800">RPA 申請案件列表</h2>
-                        <div id="user-info" class="text-right"></div>
-                    </div>
-                    <div id="requests-list" class="space-y-4">
-                        <!-- Requests will be injected here -->
-                    </div>
-                </div>
-                 <div id="admin-login-prompt" class="text-center py-10">
-                    <p class="text-gray-600">此為管理員專區，請先登入。</p>
-                    <button id="admin-login-prompt-btn" class="mt-4 py-2 px-6 border border-transparent shadow-sm text-base font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700">立即登入</button>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Custom Modal -->
-    <div id="custom-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center z-50 p-4">
-        <div id="modal-box" class="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all">
-             <div class="p-6">
-                <h3 id="modal-title" class="text-lg font-medium text-gray-900">通知</h3>
-                <div id="modal-content" class="mt-2 text-sm text-gray-600 max-h-[60vh] overflow-y-auto"></div>
-             </div>
-             <div id="modal-buttons" class="mt-2 p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3"></div>
+            <span className="text-slate-900 font-bold text-lg tracking-wider">奇美醫療財團法人佳里奇美醫院</span>
+          </div>
+          <div className="hidden md:flex text-base font-medium text-slate-500">
+            <span className="px-4 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600">主辦單位：企劃組</span>
+          </div>
         </div>
+      </nav>
+
+      {/* Hero Section */}
+      <header className="relative overflow-hidden bg-white border-b border-slate-200">
+        {/* Background Grid & Soft Glow */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-50"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-72 bg-gradient-to-b from-cyan-100/50 to-blue-50/10 blur-[80px] rounded-full pointer-events-none"></div>
+        
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-28 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-200 text-base font-bold mb-8 shadow-sm">
+            <Cpu className="w-5 h-5" />
+            <span>推動智慧醫療 · 優化職場環境</span>
+          </div>
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 tracking-tight mb-8 leading-tight">
+            醫療行政流程 <br className="hidden md:block" />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-blue-600">
+              自動化培訓暨成果發表競賽
+            </span>
+          </h1>
+          <p className="text-xl md:text-2xl text-slate-500 max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
+            告別繁瑣行政作業！學習 UiPath RPA 技術，將日常工作轉化為自動化流程，參與競賽分享標竿案例，共同帶動醫院數位轉型。
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="#schedule" className="w-full sm:w-auto px-10 py-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-lg font-bold transition-all duration-300 shadow-[0_4px_20px_rgba(8,145,178,0.3)] hover:shadow-[0_6px_25px_rgba(8,145,178,0.4)] hover:-translate-y-0.5 flex items-center justify-center gap-2">
+              <Calendar className="w-6 h-6" />
+              查看課程時程
+            </a>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20 space-y-28">
+        
+        {/* Core Objectives */}
+        <section>
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-5 flex items-center justify-center gap-3">
+              <div className="p-2.5 bg-cyan-100 rounded-lg"><Target className="text-cyan-600 w-8 h-8" /></div>
+              計畫核心目標
+            </h2>
+            <p className="text-lg text-slate-500 font-medium">呼應關鍵績效指標與策略方針，驅動醫療行政智慧化</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { icon: Target, title: "達成關鍵指標", desc: "落實 KPI 2-5-2 (辦理全院流程自動化發表競賽) 及 策略方針 2-4 (流程精實導入)。", color: "text-blue-600", bg: "bg-blue-50" },
+              { icon: Cpu, title: "轉化繁瑣作業", desc: "透過教育訓練與實作輔導，協助各單位開發 RPA 自動化流程，節省工時。", color: "text-cyan-600", bg: "bg-cyan-50" },
+              { icon: Zap, title: "帶動數位轉型", desc: "舉辦成果競賽分享標竿案例，形塑並帶動醫院內部數位轉型氛圍。", color: "text-indigo-600", bg: "bg-indigo-50" }
+            ].map((item, idx) => (
+              <div key={idx} className="bg-white border border-slate-200 p-10 rounded-2xl hover:border-cyan-300 hover:shadow-xl hover:shadow-cyan-500/5 transition-all duration-300 group">
+                <div className={`w-16 h-16 rounded-xl ${item.bg} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
+                  <item.icon className={`w-8 h-8 ${item.color}`} />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-900 mb-4">{item.title}</h3>
+                <p className="text-lg text-slate-500 leading-relaxed font-medium">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* 3 Phases Timeline */}
+        <section>
+          <div className="text-center mb-20">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-5 flex items-center justify-center gap-3">
+              <div className="p-2.5 bg-blue-100 rounded-lg"><PlayCircle className="text-blue-600 w-8 h-8" /></div>
+              三階段運作模式
+            </h2>
+            <p className="text-lg text-slate-500 font-medium">從基礎學習到實作產出，最終發表擴散成果</p>
+          </div>
+
+          <div className="relative">
+            {/* Connecting Line (Desktop) */}
+            <div className="hidden md:block absolute top-[50%] left-0 w-full h-1.5 bg-gradient-to-r from-cyan-100 via-blue-100 to-indigo-100 -translate-y-1/2 z-0 rounded-full"></div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 relative z-10">
+              {/* Phase 1 */}
+              <div className="bg-white border border-slate-200 p-10 rounded-2xl relative shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full">
+                <div className="absolute -top-5 left-10 bg-cyan-500 text-white font-black px-5 py-2 rounded-full text-base shadow-md shadow-cyan-500/20">Phase 1</div>
+                <h3 className="text-3xl font-bold text-slate-900 mt-4 mb-2">教育訓練「賦能」</h3>
+                <div className="text-cyan-600 text-base font-bold mb-5 flex items-center gap-1.5 bg-cyan-50 inline-flex self-start px-3 py-1.5 rounded-lg"><Calendar className="w-5 h-5"/> 5月 - 6月</div>
+                <p className="text-lg text-slate-600 mb-6 font-medium">目標：讓同仁具備「識別流程斷點」與「基礎 RPA 開發」的能力。</p>
+                <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 mb-8">
+                  <ul className="space-y-4 text-base text-slate-600 font-medium">
+                    <li className="flex items-start gap-2.5"><CheckCircle2 className="w-6 h-6 text-cyan-500 mt-0.5 shrink-0"/> 課程一：流程優化與RPA基礎 (UiPath)</li>
+                    <li className="flex items-start gap-2.5"><CheckCircle2 className="w-6 h-6 text-cyan-500 mt-0.5 shrink-0"/> 課程二：Excel自動化與資料處理實戰</li>
+                    <li className="flex items-start gap-2.5"><CheckCircle2 className="w-6 h-6 text-cyan-500 mt-0.5 shrink-0"/> 課程三：網頁抓取與自動化排程實戰</li>
+                  </ul>
+                </div>
+                {/* 講義下載連結按鈕 */}
+                <a href="#" target="_blank" rel="noreferrer" className="mt-auto flex items-center justify-center gap-2 w-full py-4 rounded-xl bg-gradient-to-r from-cyan-50 to-blue-50 hover:from-cyan-100 hover:to-blue-100 border border-cyan-200 text-cyan-700 text-lg font-bold transition-all shadow-sm hover:shadow-md">
+                  <DownloadCloud className="w-6 h-6" />
+                  下載課程講義與素材
+                </a>
+              </div>
+
+              {/* Phase 2 */}
+              <div className="bg-white border border-slate-200 p-10 rounded-2xl relative shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full">
+                <div className="absolute -top-5 left-10 bg-blue-500 text-white font-black px-5 py-2 rounded-full text-base shadow-md shadow-blue-500/20">Phase 2</div>
+                <h3 className="text-3xl font-bold text-slate-900 mt-4 mb-2">專案實作「實踐」</h3>
+                <div className="text-blue-600 text-base font-bold mb-5 flex items-center gap-1.5 bg-blue-50 inline-flex self-start px-3 py-1.5 rounded-lg"><Calendar className="w-5 h-5"/> 7月 - 10月</div>
+                <p className="text-lg text-slate-600 mb-6 font-medium">目標：各單位將所學應用於實際業務，產出策略方針2-4之自動化流程。</p>
+                <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 mt-auto">
+                  <ul className="space-y-4 text-base text-slate-600 font-medium">
+                    <li className="flex items-start gap-2.5"><CheckCircle2 className="w-6 h-6 text-blue-500 mt-0.5 shrink-0"/> 完成至少一項實際作業自動化</li>
+                    <li className="flex items-start gap-2.5"><CheckCircle2 className="w-6 h-6 text-blue-500 mt-0.5 shrink-0"/> 驗證效益 (如：節省工時、提升準確率)</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Phase 3 */}
+              <div className="bg-white border border-slate-200 p-10 rounded-2xl relative shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full">
+                <div className="absolute -top-5 left-10 bg-indigo-500 text-white font-black px-5 py-2 rounded-full text-base shadow-md shadow-indigo-500/20">Phase 3</div>
+                <h3 className="text-3xl font-bold text-slate-900 mt-4 mb-2">成果競賽「擴散」</h3>
+                <div className="text-indigo-600 text-base font-bold mb-5 flex items-center gap-1.5 bg-indigo-50 inline-flex self-start px-3 py-1.5 rounded-lg"><Calendar className="w-5 h-5"/> 11月</div>
+                <p className="text-lg text-slate-600 mb-6 font-medium">目標：舉辦「115年度全院流程自動化發表競賽」。</p>
+                <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 mt-auto">
+                  <ul className="space-y-4 text-base text-slate-600 font-medium">
+                    <li className="flex items-start gap-2.5"><CheckCircle2 className="w-6 h-6 text-indigo-500 mt-0.5 shrink-0"/> 形式：口頭發表簡報</li>
+                    <li className="flex items-start gap-2.5"><CheckCircle2 className="w-6 h-6 text-indigo-500 mt-0.5 shrink-0"/> 選拔優秀流程並頒發豐厚獎金</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Schedule Table */}
+        <section id="schedule">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-5 flex items-center justify-center gap-3">
+              <div className="p-2.5 bg-slate-100 rounded-lg"><Calendar className="text-slate-600 w-8 h-8" /></div>
+              課程與活動時程表
+            </h2>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-slate-600">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-base uppercase tracking-wider font-bold">
+                  <tr>
+                    <th className="px-8 py-6">項目 / 主題</th>
+                    <th className="px-8 py-6">日期</th>
+                    <th className="px-8 py-6">時間</th>
+                    <th className="px-8 py-6">地點</th>
+                    <th className="px-8 py-6">講師 / 評審</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-lg">
+                  <tr className="hover:bg-cyan-50/50 transition-colors">
+                    <td className="px-8 py-6 font-bold text-slate-900">流程優化與 RPA 基礎概念<br/><span className="text-base text-cyan-600 font-semibold bg-cyan-50 px-2.5 py-1 rounded mt-2 inline-block">UiPath 介紹</span></td>
+                    <td className="px-8 py-6 font-medium">115/05/04<br/><span className="text-slate-400 text-base">(週一)</span></td>
+                    <td className="px-8 py-6 font-medium">14:00-16:00<br/><span className="text-slate-400 text-base">(共二小時)</span></td>
+                    <td className="px-8 py-6"><span className="inline-flex items-center gap-1.5 bg-slate-100 px-4 py-2 rounded-xl text-base font-medium"><MapPin className="w-4 h-4 text-cyan-600"/> B31 會議室</span></td>
+                    <td className="px-8 py-6 font-medium">丁冠博 行政管理員<br/><span className="text-slate-400 text-base">(佳里院區醫療服務組)</span></td>
+                  </tr>
+                  <tr className="hover:bg-cyan-50/50 transition-colors">
+                    <td className="px-8 py-6 font-bold text-slate-900">Excel 自動化與資料處理實戰</td>
+                    <td className="px-8 py-6 font-medium">115/05/18<br/><span className="text-slate-400 text-base">(週一)</span></td>
+                    <td className="px-8 py-6 font-medium">14:00-17:00<br/><span className="text-slate-400 text-base">(共三小時)</span></td>
+                    <td className="px-8 py-6"><span className="inline-flex items-center gap-1.5 bg-slate-100 px-4 py-2 rounded-xl text-base font-medium"><MapPin className="w-4 h-4 text-cyan-600"/> B51 會議室</span></td>
+                    <td className="px-8 py-6 font-medium">丁冠博 行政管理員</td>
+                  </tr>
+                  <tr className="hover:bg-cyan-50/50 transition-colors">
+                    <td className="px-8 py-6 font-bold text-slate-900">網頁抓取與自動化排程實戰</td>
+                    <td className="px-8 py-6 font-medium">115/06/01<br/><span className="text-slate-400 text-base">(週一)</span></td>
+                    <td className="px-8 py-6 font-medium">14:00-17:00<br/><span className="text-slate-400 text-base">(共三小時)</span></td>
+                    <td className="px-8 py-6"><span className="inline-flex items-center gap-1.5 bg-slate-100 px-4 py-2 rounded-xl text-base font-medium"><MapPin className="w-4 h-4 text-cyan-600"/> B31 會議室</span></td>
+                    <td className="px-8 py-6 font-medium">丁冠博 行政管理員</td>
+                  </tr>
+                  <tr className="bg-indigo-50/50 hover:bg-indigo-50 transition-colors border-t-2 border-indigo-200">
+                    <td className="px-8 py-8 font-bold text-indigo-700 text-xl flex items-center gap-2"><Trophy className="w-6 h-6 text-indigo-500"/> 成果競賽發表</td>
+                    <td className="px-8 py-8 font-bold text-slate-900">115/11/11<br/><span className="text-slate-500 text-base font-medium">(週三)</span></td>
+                    <td className="px-8 py-8 font-bold text-slate-900">10:00-12:00<br/><span className="text-slate-500 text-base font-medium">(共二小時)</span></td>
+                    <td className="px-8 py-8"><span className="inline-flex items-center gap-1.5 bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl text-base font-bold"><MapPin className="w-4 h-4 text-indigo-600"/> A81 會議室</span></td>
+                    <td className="px-8 py-8 font-medium text-slate-700">
+                      <strong className="text-indigo-800">評審委員：</strong><br/>
+                      <span className="leading-loose">
+                        田宇峯 院長<br/>
+                        邵詩媛 副院長<br/>
+                        王怡凱 主任<br/>
+                        紀宗瀚 專員
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="mt-5 text-right text-base text-slate-400 font-medium">
+            * 助教：佳里院區企劃組 紀宗瀚 專員
+          </div>
+        </section>
+
+        {/* Prizes Section */}
+        <section>
+          <div className="bg-white border border-slate-200 shadow-2xl rounded-3xl p-10 md:p-14 text-center relative overflow-hidden">
+            {/* Tech Decoration */}
+            <div className="absolute top-0 right-0 w-80 h-80 bg-amber-100/50 blur-[100px] rounded-full pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-cyan-100/50 blur-[100px] rounded-full pointer-events-none"></div>
+            
+            <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-12 relative z-10 flex items-center justify-center gap-3">
+              <div className="p-2.5 bg-amber-50 rounded-lg"><Trophy className="text-amber-500 w-8 h-8" /></div>
+              競賽獎項與獎勵金
+            </h2>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 relative z-10">
+              <div className="bg-white border-2 border-amber-200 rounded-2xl p-8 transform hover:-translate-y-2 hover:shadow-xl hover:shadow-amber-500/10 transition-all">
+                <div className="text-amber-600 font-extrabold text-2xl mb-2">金獎</div>
+                <div className="text-base text-amber-600/80 font-bold bg-amber-50 rounded-full inline-block px-4 py-1 mb-5">1名</div>
+                <div className="text-4xl md:text-5xl font-black text-slate-800">8,000<span className="text-lg text-slate-500 font-medium ml-1.5">元</span></div>
+              </div>
+              <div className="bg-white border-2 border-slate-200 rounded-2xl p-8 transform hover:-translate-y-2 hover:shadow-xl transition-all">
+                <div className="text-slate-500 font-extrabold text-2xl mb-2">銀獎</div>
+                <div className="text-base text-slate-500/80 font-bold bg-slate-100 rounded-full inline-block px-4 py-1 mb-5">1名</div>
+                <div className="text-4xl md:text-5xl font-black text-slate-800">5,000<span className="text-lg text-slate-500 font-medium ml-1.5">元</span></div>
+              </div>
+              <div className="bg-white border-2 border-orange-200 rounded-2xl p-8 transform hover:-translate-y-2 hover:shadow-xl hover:shadow-orange-500/10 transition-all">
+                <div className="text-orange-500 font-extrabold text-2xl mb-2">銅獎</div>
+                <div className="text-base text-orange-500/80 font-bold bg-orange-50 rounded-full inline-block px-4 py-1 mb-5">1名</div>
+                <div className="text-4xl md:text-5xl font-black text-slate-800">3,000<span className="text-lg text-slate-500 font-medium ml-1.5">元</span></div>
+              </div>
+              <div className="bg-white border-2 border-cyan-200 rounded-2xl p-8 transform hover:-translate-y-2 hover:shadow-xl hover:shadow-cyan-500/10 transition-all">
+                <div className="text-cyan-600 font-extrabold text-2xl mb-2">佳作</div>
+                <div className="text-base text-cyan-600/80 font-bold bg-cyan-50 rounded-full inline-block px-4 py-1 mb-5">1名</div>
+                <div className="text-4xl md:text-5xl font-black text-slate-800">1,000<span className="text-lg text-slate-500 font-medium ml-1.5">元</span></div>
+              </div>
+            </div>
+            
+            <div className="mt-12 inline-flex items-center gap-3 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 px-8 py-5 rounded-2xl text-slate-600 font-medium shadow-sm relative z-10">
+              <Award className="w-8 h-8 text-amber-500 shrink-0" />
+              <span className="text-lg">各組別完成口頭報告者，加碼提供 <strong className="text-slate-900 font-bold text-xl mx-1.5">1,000元</strong> 發表獎勵金！</span>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-200 bg-white py-12 text-center text-slate-400 text-base font-medium">
+        <p>奇美醫療財團法人佳里奇美醫院 - 企劃組 主辦</p>
+      </footer>
     </div>
+  );
+};
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, serverTimestamp, setLogLevel, query, where, getDocs, deleteField, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
-
-        window.addEventListener('load', () => {
-            // --- USER DATA STORE ---
-            let users = {
-              'admin': { password: 'cch2013', role: 'admin', name: '系統管理員' },
-              '891025': { password: '32004', role: 'finalApprover', name: '核決主管' },
-              'a003c1': { password: '1234', role: 'handler', name: '承辦人員' },
-              'a00535': { password: '32005', role: 'handlerSupervisor', name: '承辦單位主管' }
-            };
-
-            function saveUsersToLocalStorage() {
-                try {
-                    localStorage.setItem('rpaUsers', JSON.stringify(users));
-                } catch (e) {
-                    console.error("Failed to save users to localStorage", e);
-                }
-            }
-
-            function loadUsersFromLocalStorage() {
-                try {
-                    const storedUsers = localStorage.getItem('rpaUsers');
-                    if (storedUsers) {
-                        const parsedUsers = JSON.parse(storedUsers);
-                        Object.keys(users).forEach(username => {
-                            if (parsedUsers[username] && parsedUsers[username].password) {
-                                users[username].password = parsedUsers[username].password;
-                            }
-                        });
-                    }
-                } catch (e) {
-                    console.error("Failed to load users from localStorage", e);
-                }
-            }
-            
-            loadUsersFromLocalStorage(); 
-
-            const state = {
-                isLoggedIn: false,
-                currentUser: null,
-                requests: [],
-                activeTab: 'apply',
-                db: null,
-                deepLinkedRequestId: null,
-            };
-
-            const form = document.getElementById('rpaForm');
-            const submitBtn = document.getElementById('submit-btn');
-            const clearBtn = document.getElementById('clear-btn');
-            
-            const tabButtons = document.querySelectorAll('.tab-btn');
-            const tabContents = document.querySelectorAll('.tab-content');
-            
-            const adminView = document.getElementById('admin-view');
-            const adminLoginPrompt = document.getElementById('admin-login-prompt');
-            const adminLoginPromptBtn = document.getElementById('admin-login-prompt-btn');
-            const userInfoDiv = document.getElementById('user-info');
-            const requestsList = document.getElementById('requests-list');
-            const pendingCountBadge = document.getElementById('pending-count');
-
-            const searchInput = document.getElementById('search-input');
-            const searchBtn = document.getElementById('search-btn');
-            const searchResults = document.getElementById('search-results');
-            
-            const modal = document.getElementById('custom-modal');
-            const modalBox = document.getElementById('modal-box');
-            const modalTitle = document.getElementById('modal-title');
-            const modalContent = document.getElementById('modal-content');
-            const modalButtons = document.getElementById('modal-buttons');
-
-            // --- MODAL FUNCTIONS ---
-            function hideModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); }
-            function showAlert(message, title = '通知') {
-                modalTitle.textContent = title;
-                modalContent.innerHTML = `<p>${message}</p>`;
-                modalButtons.innerHTML = `<button id="modal-ok-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none">確定</button>`;
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-                document.getElementById('modal-ok-btn').onclick = hideModal;
-                document.getElementById('modal-ok-btn').focus();
-            }
-
-            function showConfirm(message, callback, title = '確認操作') {
-                modalTitle.textContent = title;
-                modalContent.innerHTML = `<p>${message}</p>`;
-                modalButtons.innerHTML = `
-                    <button id="modal-cancel-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">取消</button>
-                    <button id="modal-confirm-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none">確定</button>
-                `;
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-                const confirmBtn = document.getElementById('modal-confirm-btn');
-                const cancelBtn = document.getElementById('modal-cancel-btn');
-                confirmBtn.onclick = () => { hideModal(); if (callback) callback(true); };
-                cancelBtn.onclick = () => { hideModal(); if (callback) callback(false); };
-                confirmBtn.focus();
-            }
-
-            function showSuccessWithLink(message, link) {
-                modalTitle.textContent = '申請成功';
-                modalContent.innerHTML = `
-                    <p>${message}</p>
-                    <div class="mt-4">
-                        <label for="approval-link" class="block text-sm font-medium text-gray-700 text-left">專屬簽核連結</label>
-                        <input type="text" id="approval-link" readonly class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm" value="${link}">
-                    </div>
-                `;
-                modalButtons.innerHTML = `
-                    <button id="modal-copy-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none">複製連結</button>
-                    <button id="modal-close-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">關閉</button>
-                `;
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-
-                const copyBtn = document.getElementById('modal-copy-btn');
-                const closeBtn = document.getElementById('modal-close-btn');
-                const linkInput = document.getElementById('approval-link');
-
-                copyBtn.onclick = () => {
-                    linkInput.select();
-                    document.execCommand('copy');
-                    copyBtn.textContent = '已複製！';
-                    setTimeout(() => { copyBtn.textContent = '複製連結'; }, 2000);
-                };
-                closeBtn.onclick = hideModal;
-            }
-
-            function promptLogin() {
-                modalTitle.textContent = '管理員登入';
-                modalContent.innerHTML = `<div class="space-y-4"><div><label for="modal-username" class="block text-sm font-medium text-gray-700 text-left">帳號</label><input type="text" id="modal-username" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><div><label for="modal-password" class="block text-sm font-medium text-gray-700 text-left">密碼 (分機)</label><input type="password" id="modal-password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></div><p id="modal-error" class="text-sm text-red-600 h-4"></p></div>`;
-                modalButtons.innerHTML = `<button id="modal-cancel-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">取消</button><button id="modal-login-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none">登入</button>`;
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-                
-                const loginBtn = document.getElementById('modal-login-btn'), cancelBtn = document.getElementById('modal-cancel-btn'), usernameInput = document.getElementById('modal-username'), passwordInput = document.getElementById('modal-password'), errorEl = document.getElementById('modal-error');
-                usernameInput.focus();
-                
-                const handleLogin = () => {
-                    const username = usernameInput.value.trim();
-                    const password = passwordInput.value;
-                    const user = users[username];
-
-                    if (user && user.password === password) {
-                        hideModal(); 
-                        state.isLoggedIn = true; 
-                        state.currentUser = { username, ...user };
-                        showAlert('登入成功！'); 
-                        updateUI(); 
-                        setActiveTab('admin');
-                    } else {
-                        errorEl.textContent = '帳號或密碼錯誤！';
-                        modalBox.classList.add('animate-shake');
-                        setTimeout(() => modalBox.classList.remove('animate-shake'), 500);
-                    }
-                };
-                loginBtn.onclick = handleLogin;
-                passwordInput.onkeydown = (e) => { if (e.key === 'Enter') handleLogin(); };
-                cancelBtn.onclick = hideModal;
-            }
-            
-             function promptChangePassword() {
-                modalTitle.textContent = '修改密碼';
-                modalContent.innerHTML = `
-                    <div class="space-y-4">
-                        <div><label for="old-password" class="block text-sm font-medium text-gray-700 text-left">舊密碼</label><input type="password" id="old-password" class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
-                        <div><label for="new-password" class="block text-sm font-medium text-gray-700 text-left">新密碼</label><input type="password" id="new-password" class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
-                        <div><label for="confirm-password" class="block text-sm font-medium text-gray-700 text-left">確認新密碼</label><input type="password" id="confirm-password" class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
-                        <p id="modal-error" class="text-sm text-red-600 h-4"></p>
-                    </div>`;
-                modalButtons.innerHTML = `<button id="modal-cancel-btn" class="rounded-md border px-4 py-2 bg-white text-sm font-medium">取消</button><button id="modal-confirm-change-btn" class="rounded-md border border-transparent px-4 py-2 bg-blue-600 text-sm font-medium text-white">確認修改</button>`;
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-
-                const confirmBtn = document.getElementById('modal-confirm-change-btn');
-                const cancelBtn = document.getElementById('modal-cancel-btn');
-                const oldPasswordInput = document.getElementById('old-password');
-                const newPasswordInput = document.getElementById('new-password');
-                const confirmPasswordInput = document.getElementById('confirm-password');
-                const errorEl = document.getElementById('modal-error');
-                oldPasswordInput.focus();
-
-                cancelBtn.onclick = hideModal;
-                confirmBtn.onclick = () => {
-                    const oldPass = oldPasswordInput.value;
-                    const newPass = newPasswordInput.value;
-                    const confirmPass = confirmPasswordInput.value;
-                    const currentUser = state.currentUser;
-
-                    if (users[currentUser.username].password !== oldPass) {
-                        errorEl.textContent = '舊密碼不正確！'; return;
-                    }
-                    if (!newPass || newPass.length < 4) {
-                        errorEl.textContent = '新密碼長度至少需要4個字元。'; return;
-                    }
-                    if (newPass !== confirmPass) {
-                        errorEl.textContent = '兩次輸入的新密碼不相符。'; return;
-                    }
-                    users[currentUser.username].password = newPass;
-                    saveUsersToLocalStorage();
-                    hideModal();
-                    showAlert('密碼已成功修改！');
-                };
-            }
-
-            function promptManagerAction(req, callback) {
-                modalTitle.textContent = '單位主管簽核';
-                const detailsHTML = `
-                    <div class="mb-4 border-b pb-4 space-y-2 text-sm">
-                        <h4 class="font-bold text-base text-gray-900">申請內容</h4>
-                        <p><strong>申請人:</strong> ${req.applicantName} (${req.applicantUnit})</p>
-                        <p><strong>申請日期:</strong> ${req.applicantDate}</p>
-                        <p><strong>程式名稱:</strong> ${req.programName}</p>
-                        <h5 class="font-medium mt-2">作業流程:</h5>
-                        <div class="whitespace-pre-wrap p-2 bg-gray-50 rounded text-xs max-h-24 overflow-y-auto">${req.workFlow}</div>
-                        <h5 class="font-medium mt-2">申請目的:</h5>
-                        <div class="whitespace-pre-wrap p-2 bg-gray-50 rounded text-xs max-h-24 overflow-y-auto">${req.applicationPurpose}</div>
-                    </div>
-                `;
-                modalContent.innerHTML = detailsHTML + `
-                    <p class="mb-4">請輸入您的姓名以完成簽核。若要退回，請務必填寫原因。</p>
-                    <div class="space-y-4">
-                        <div>
-                            <label for="modal-manager-name" class="block text-sm font-medium text-gray-700 text-left">主管姓名</label>
-                            <input type="text" id="modal-manager-name" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label for="modal-manager-remarks" class="block text-sm font-medium text-gray-700 text-left">簽核備註</label>
-                            <textarea id="modal-manager-remarks" rows="3" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="簽核備註 (非必填)，若退回申請請務必說明原因..."></textarea>
-                        </div>
-                        <p id="modal-error" class="text-sm text-red-600 h-4 mt-1"></p>
-                    </div>`;
-                modalButtons.innerHTML = `
-                    <button id="modal-cancel-btn" class="inline-flex justify-center rounded-md border px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">取消</button>
-                    <button id="modal-reject-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-sm font-medium text-white hover:bg-red-700">退回申請</button>
-                    <button id="modal-approve-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-sm font-medium text-white hover:bg-green-700">簽章</button>`;
-                
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-
-                const approveBtn = document.getElementById('modal-approve-btn');
-                const rejectBtn = document.getElementById('modal-reject-btn');
-                const cancelBtn = document.getElementById('modal-cancel-btn');
-                const managerNameInput = document.getElementById('modal-manager-name');
-                const managerRemarksInput = document.getElementById('modal-manager-remarks');
-                const errorEl = document.getElementById('modal-error');
-                managerNameInput.focus();
-
-                const handleAction = (isApproved) => {
-                    const name = managerNameInput.value.trim();
-                    const remarks = managerRemarksInput.value.trim();
-                    if (!name) {
-                        errorEl.textContent = '主管姓名為必填欄位。';
-                        modalBox.classList.add('animate-shake');
-                        setTimeout(() => { modalBox.classList.remove('animate-shake'); }, 500);
-                        return;
-                    }
-                    if (!isApproved && !remarks) {
-                        errorEl.textContent = '退回申請必須填寫原因。';
-                        modalBox.classList.add('animate-shake');
-                        setTimeout(() => { modalBox.classList.remove('animate-shake'); }, 500);
-                        return;
-                    }
-                    hideModal();
-                    if (callback) callback({ approved: isApproved, name, remarks });
-                };
-
-                approveBtn.onclick = () => handleAction(true);
-                rejectBtn.onclick = () => handleAction(false);
-                cancelBtn.onclick = () => { hideModal(); if (callback) callback(null); };
-            }
-
-            // --- UI & TAB HANDLING ---
-            function setActiveTab(tabName) {
-                state.activeTab = tabName;
-                tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
-                tabContents.forEach(content => content.classList.toggle('hidden', content.id !== `tab-content-${tabName}`));
-                if (tabName === 'admin') updateAdminTabVisibility();
-            }
-
-            function updateAdminTabVisibility() {
-                const showAdminView = state.isLoggedIn && state.activeTab === 'admin';
-                adminView.classList.toggle('hidden', !showAdminView);
-                adminLoginPrompt.classList.toggle('hidden', showAdminView);
-            }
-
-            function updateUI() {
-                if (state.isLoggedIn && state.currentUser) {
-                    userInfoDiv.innerHTML = `
-                        <div class="flex items-center gap-4">
-                             <div>
-                                 <p class="font-semibold text-sm text-gray-800">${state.currentUser.name}</p>
-                                 <p class="text-xs text-gray-500">${state.currentUser.username}</p>
-                             </div>
-                             <button id="change-password-btn" class="text-sm text-gray-600 hover:text-blue-600">修改密碼</button>
-                            <button id="logout-btn" class="py-2 px-4 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700">登出</button>
-                        </div>
-                    `;
-                    document.getElementById('logout-btn').addEventListener('click', () => {
-                        state.isLoggedIn = false;
-                        state.currentUser = null;
-                        showAlert('已登出。'); 
-                        updateUI(); 
-                        setActiveTab('apply');
-                    });
-                    document.getElementById('change-password-btn').addEventListener('click', promptChangePassword);
-                    
-                    let pendingCount = 0;
-                    const { role } = state.currentUser;
-                    if (role === 'admin') {
-                        pendingCount = state.requests.filter(r => r.approvalStatus !== '已核准' && r.approvalStatus !== '已駁回').length;
-                    } else {
-                        const requiredStatusMap = {
-                            handler: '待承辦人員評估',
-                            handlerSupervisor: '待承辦主管簽核',
-                            finalApprover: '待核決主管簽核'
-                        };
-                        const requiredStatus = requiredStatusMap[role];
-                        if (requiredStatus) {
-                            pendingCount = state.requests.filter(r => r.approvalStatus === requiredStatus).length;
-                        }
-                    }
-
-                    if (pendingCount > 0) {
-                        pendingCountBadge.textContent = pendingCount;
-                        pendingCountBadge.classList.remove('hidden');
-                    } else {
-                        pendingCountBadge.classList.add('hidden');
-                    }
-                } else {
-                    userInfoDiv.innerHTML = '';
-                    pendingCountBadge.classList.add('hidden');
-                }
-                updateAdminTabVisibility();
-                renderAdminList();
-            }
-
-            function getStatusBadgeClass(status) {
-                if (status === '已核准') return 'status-approved';
-                if (status === '已駁回') return 'status-rejected';
-                if (status === '待單位主管簽核') return 'status-pending';
-                return 'status-processing';
-            }
-
-            // --- RENDER FUNCTIONS ---
-            function renderAdminList() {
-                if (!state.isLoggedIn || !state.currentUser) {
-                    requestsList.innerHTML = '';
-                    return;
-                };
-
-                const { role } = state.currentUser;
-                let filteredRequests = state.requests;
-
-                if (role !== 'admin') {
-                    const requiredStatusMap = {
-                        handler: '待承辦人員評估',
-                        handlerSupervisor: '待承辦主管簽核',
-                        finalApprover: '待核決主管簽核'
-                    };
-                    const requiredStatus = requiredStatusMap[role];
-                    if (requiredStatus) {
-                        filteredRequests = state.requests.filter(req => req.approvalStatus === requiredStatus);
-                    } else {
-                        filteredRequests = []; 
-                    }
-                }
-                
-                requestsList.innerHTML = '';
-                if(filteredRequests.length === 0) { 
-                    requestsList.innerHTML = `<p class="text-center text-gray-500">目前沒有待您處理的申請案件。</p>`; 
-                    return; 
-                }
-                
-                filteredRequests.forEach(req => {
-                    const card = document.createElement('div');
-                    card.className = 'request-card p-4 border rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3';
-                    const createdAt = req.createdAt?.toDate() ? req.createdAt.toDate().toLocaleDateString('zh-TW') : 'N/A';
-                    
-                    let adminButtonsHTML = '';
-                    if (state.currentUser.role === 'admin') {
-                        adminButtonsHTML = `<button class="text-sm text-red-600 hover:text-red-800 font-medium delete-btn">刪除</button>`;
-                    }
-
-                    card.innerHTML = `
-                        <div class="flex-grow">
-                            <p class="font-semibold text-gray-800">${req.programName || '未命名程式'}</p>
-                            <p class="text-sm text-gray-600">申請人: ${req.applicantName || 'N/A'} (${req.applicantUnit || 'N/A'})</p>
-                            <p class="text-xs text-gray-400">單號: ${req.requestId || 'N/A'} | 申請日: ${createdAt}</p>
-                        </div>
-                        <div class="flex items-center flex-shrink-0 gap-4">
-                             <button class="text-sm text-blue-600 hover:text-blue-800 font-medium view-btn">檢視與簽核</button>
-                             ${adminButtonsHTML}
-                             <span class="status-badge ${getStatusBadgeClass(req.approvalStatus)}">${req.approvalStatus}</span>
-                        </div>`;
-                    
-                    card.querySelector('.view-btn').addEventListener('click', () => showApprovalModal(req.id));
-                    const deleteBtn = card.querySelector('.delete-btn');
-                    if (deleteBtn) {
-                        deleteBtn.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            deleteRequest(req.id, req.requestId);
-                        });
-                    }
-                    requestsList.appendChild(card);
-                });
-            }
-
-            function handleSearch() {
-                const query = searchInput.value.trim();
-                if (!query) { searchResults.innerHTML = `<p class="text-center text-gray-500">請輸入查詢條件。</p>`; return; }
-                const results = state.requests.filter(req => (req.applicantName && req.applicantName.includes(query)) || (req.requestId && req.requestId.includes(query)));
-                
-                searchResults.innerHTML = '';
-                if (results.length === 0) { searchResults.innerHTML = `<p class="text-center text-gray-500">找不到符合「${query}」的申請記錄。</p>`; return; }
-                
-                results.forEach(req => {
-                    const card = document.createElement('div');
-                    card.className = 'p-6 border rounded-lg bg-gray-50 space-y-4';
-                    
-                    const steps = [
-                        { name: '提出申請', data: req, completed: true, dateKey: 'createdAt', userKey: 'applicantName', successText: '提出' },
-                        { name: '單位主管簽核', data: req.deptSupervisorData, completed: !!req.deptSupervisorData, rejected: req.deptSupervisorData?.approved === false, successText: '已簽章' },
-                        { name: '承辦人員評估', data: req.handlerData, completed: !!req.handlerData, successText: '陳核' },
-                        { name: '承辦主管簽核', data: req.handlerSupervisorData, completed: !!req.handlerSupervisorData, rejected: req.handlerSupervisorData?.approved === false, successText: '陳核' },
-                        { name: '核決主管簽核', data: req.finalApproverData, completed: !!req.finalApproverData, rejected: req.finalApproverData?.approved === false, successText: '核准' }
-                    ];
-
-                    let timelineHTML = '<ul class="timeline">';
-                    let currentStepFound = false;
-                    for(const step of steps) {
-                        let statusClass = '';
-                        let isCurrent = false;
-                        if(step.completed) statusClass = 'completed';
-                        if(step.rejected) statusClass = 'rejected';
-                        if(!step.completed && !currentStepFound && req.approvalStatus !== '已核准' && req.approvalStatus !== '已駁回') {
-                             statusClass = 'current';
-                             isCurrent = true;
-                             currentStepFound = true;
-                        }
-                        
-                        let content = `<p class="text-gray-500">待處理</p>`;
-                        if (step.data) {
-                            const date = step.data.date || (step.dateKey && req[step.dateKey]?.toDate()?.toLocaleDateString('zh-TW'));
-                            const user = step.data.name || (step.userKey && req[step.userKey]);
-                            const notes = step.data.evaluation || step.data.suggestion || '';
-                            const actionText = step.rejected ? '駁回' : (step.successText || '完成');
-                            content = `
-                                <div class="flex justify-between items-center">
-                                    <span class="font-medium ${step.rejected ? 'text-red-600' : ''}">${user || ''} ${actionText}</span>
-                                    <span class="text-xs text-gray-500">${date || ''}</span>
-                                </div>
-                                ${notes ? `<div class="mt-2 p-2 bg-gray-100 rounded-md text-gray-700 text-xs whitespace-pre-wrap">${notes}</div>` : ''}
-                            `;
-                        }
-                        if(isCurrent) content = `<p class="text-blue-600 font-semibold">目前階段</p>`;
-
-
-                        timelineHTML += `
-                            <li class="timeline-item ${statusClass}">
-                                <div class="timeline-marker"></div>
-                                <div class="timeline-content">
-                                    <h4 class="font-semibold text-gray-800">${step.name}</h4>
-                                    ${content}
-                                </div>
-                            </li>`;
-                    }
-                    timelineHTML += '</ul>';
-
-                    let managerActionsHTML = '';
-                    if (req.approvalStatus === '待單位主管簽核') {
-                        managerActionsHTML = `
-                            <div class="mt-4 pt-4 border-t text-center">
-                                <p class="text-sm text-gray-600 mb-2">此申請需要單位主管簽核</p>
-                                <button class="w-full sm:w-auto inline-flex justify-center py-2 px-6 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 approve-btn-search">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                    前往簽核
-                                </button>
-                            </div>`;
-                    }
-
-                    card.innerHTML = `
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <p class="font-semibold text-lg text-gray-800">${req.programName}</p>
-                                <span class="status-badge ${getStatusBadgeClass(req.approvalStatus)}">${req.approvalStatus}</span>
-                            </div>
-                            <p class="text-xs text-gray-500">申請單號: ${req.requestId}</p>
-                        </div>
-                        <div class="border-t pt-4">
-                            ${timelineHTML}
-                            ${managerActionsHTML}
-                        </div>`;
-                    searchResults.appendChild(card);
-
-                    const approveBtnSearch = card.querySelector('.approve-btn-search');
-                    if (approveBtnSearch) {
-                        approveBtnSearch.addEventListener('click', () => handleManagerApproval(req.id));
-                    }
-                });
-            }
-
-            // --- APPROVAL MODAL & FIRESTORE LOGIC ---
-            async function deleteRequest(id, requestId) {
-                showConfirm(`您確定要永久刪除申請單 ${requestId} 嗎？此操作無法復原。`, async (confirmed) => {
-                    if (confirmed) {
-                        try {
-                            const docRef = doc(state.db, 'rpa-requests', id);
-                            await deleteDoc(docRef);
-                            showAlert('申請單已成功刪除。');
-                        } catch (error) {
-                            console.error("Error deleting document:", error);
-                            showAlert('刪除失敗，請稍後再試。', '錯誤');
-                        }
-                    }
-                }, '確認刪除');
-            }
-
-            async function handleManagerApproval(id) {
-                if (!id || !state.db) return;
-                const req = state.requests.find(r => r.id === id);
-                if (!req || req.approvalStatus !== '待單位主管簽核') {
-                    showAlert('此申請單的狀態已變更，無法進行簽核。', '操作無效');
-                    return;
-                }
-                
-                promptManagerAction(req, async (action) => {
-                    if (action) { 
-                        const docRef = doc(state.db, 'rpa-requests', id);
-                        try {
-                            const stageData = { name: action.name, date: new Date().toLocaleDateString('zh-TW'), approved: action.approved };
-                            if (action.remarks) {
-                                stageData.suggestion = action.remarks;
-                            }
-
-                            if (action.approved) {
-                                await updateDoc(docRef, { 
-                                    approvalStatus: '待承辦人員評估',
-                                    deptSupervisorData: stageData
-                                });
-                                showAlert('申請單已簽核！將轉交承辦人員處理。');
-                            } else { 
-                                await updateDoc(docRef, { 
-                                    approvalStatus: '已駁回',
-                                    deptSupervisorData: stageData
-                                });
-                                showAlert('申請單已退回。');
-                            }
-                        } catch (error) {
-                            console.error("Error during manager action:", error);
-                            showAlert('操作失敗，請稍後再試。', '錯誤');
-                        }
-                    }
-                });
-            }
-
-            const approvalStages = {
-                "待單位主管簽核": { title: "單位主管簽核", field: "deptSupervisorData", nextStatus: "待承辦人員評估", hasNotes: true, notesLabel: "簽核備註 (非必填)", isEvaluation: false, requiredRole: null, successText: '已簽章' },
-                "待承辦人員評估": { title: "承辦人員評估", field: "handlerData", nextStatus: "待承辦主管簽核", hasNotes: true, notesLabel: "評估內容", isEvaluation: true, prevStatus: '待單位主管簽核', prevField: 'deptSupervisorData', requiredRole: 'handler', successText: '陳核' },
-                "待承辦主管簽核": { title: "承辦主管簽核", field: "handlerSupervisorData", nextStatus: "待核決主管簽核", hasNotes: true, notesLabel: "建議", isEvaluation: false, prevStatus: '待承辦人員評估', prevField: 'handlerData', requiredRole: 'handlerSupervisor', successText: '陳核' },
-                "待核決主管簽核": { title: "核決主管簽核", field: "finalApproverData", nextStatus: "已核准", hasNotes: true, notesLabel: "簽核備註 (非必填)", isEvaluation: false, prevStatus: '待承辦主管簽核', prevField: 'handlerSupervisorData', requiredRole: 'finalApprover', successText: '核准' }
-            };
-
-            async function handleReturnAction(id, stageInfo) {
-                if (!id || !stageInfo || !stageInfo.prevStatus || !stageInfo.prevField) return;
-
-                const updateData = {
-                    approvalStatus: stageInfo.prevStatus,
-                    [stageInfo.prevField]: deleteField()
-                };
-
-                try {
-                    const docRef = doc(state.db, 'rpa-requests', id);
-                    await updateDoc(docRef, updateData);
-                    hideModal();
-                    showAlert(`案件已成功退回至「${approvalStages[stageInfo.prevStatus].title}」。`);
-                } catch (error) {
-                    console.error("Error returning to previous step:", error);
-                    showAlert('操作失敗，請稍後再試。', '錯誤');
-                }
-            }
-            
-            function showApprovalModal(id) {
-                const req = state.requests.find(r => r.id === id);
-                if (!req) return;
-                
-                const currentStageInfo = approvalStages[req.approvalStatus];
-
-                modalTitle.textContent = `檢視申請單: ${req.requestId}`;
-                let contentHTML = `
-                    <div class="space-y-4 text-sm">
-                        <h4 class="font-bold text-base text-gray-900 border-b pb-2">申請資訊</h4>
-                        <div class="grid grid-cols-2 gap-x-4 gap-y-2 p-2 bg-gray-50 rounded">
-                            <p><strong>申請人:</strong> ${req.applicantName}</p>
-                            <p><strong>申請單位:</strong> ${req.applicantUnit}</p>
-                            <p><strong>申請日期:</strong> ${req.applicantDate}</p>
-                             <p><strong>單位代號:</strong> ${req.unitCode}</p>
-                            <p><strong>院內分機:</strong> ${req.phoneExt}</p>
-                            <p><strong>院內手機:</strong> ${req.phoneMobile}</p>
-                            <p class="col-span-2"><strong>程式名稱:</strong> ${req.programName}</p>
-                        </div>
-                        <div><h5 class="font-medium">作業流程:</h5><div class="whitespace-pre-wrap p-2 bg-gray-50 rounded mt-1">${req.workFlow}</div></div>
-                        <div><h5 class="font-medium">申請目的:</h5><div class="whitespace-pre-wrap p-2 bg-gray-50 rounded mt-1">${req.applicationPurpose}</div></div>
-                    </div>`;
-
-                contentHTML += `<div class="mt-6 space-y-4"><h4 class="font-bold text-base text-gray-900 border-b pb-2">簽核歷程</h4>`;
-                for(const stageKey in approvalStages) {
-                    const stage = approvalStages[stageKey];
-                    if(req[stage.field]) {
-                         const resultText = req[stage.field].approved === false ? '駁回' : (stage.successText || '完成');
-                         contentHTML += `<div class="p-2 border rounded-md">
-                            <p class="font-semibold">${stage.title}</p>
-                            <p><strong>簽核人:</strong> ${req[stage.field].name} | <strong>日期:</strong> ${req[stage.field].date}</p>
-                            ${req[stage.field].evaluation ? `<p><strong>評估:</strong> <span class="whitespace-pre-wrap">${req[stage.field].evaluation}</span></p>` : ''}
-                            ${req[stage.field].suggestion ? `<p><strong>建議:</strong> <span class="whitespace-pre-wrap">${req[stage.field].suggestion}</span></p>` : ''}
-                            <p><strong>結果:</strong> <span class="font-bold ${req[stage.field].approved === false ? 'text-red-500' : 'text-green-500'}">${resultText}</span></p>
-                         </div>`;
-                    }
-                }
-                 contentHTML += `</div>`;
-                
-                const canApprove = state.isLoggedIn && currentStageInfo &&
-                               (state.currentUser.role === currentStageInfo.requiredRole || state.currentUser.role === 'admin');
-
-                if (canApprove) {
-                    const approverNameValue = (currentStageInfo.requiredRole === 'handlerSupervisor' || currentStageInfo.requiredRole === 'finalApprover') ? '' : state.currentUser.name;
-                    contentHTML += `
-                        <div class="mt-6 border-t pt-4">
-                            <h4 class="font-bold text-base text-blue-700">${currentStageInfo.title}</h4>
-                            <div class="space-y-3 mt-2">
-                                <div><label for="approverName" class="block text-xs font-medium text-gray-600">簽核人姓名</label><input type="text" id="approverName" value="${approverNameValue}" class="mt-1 w-full p-2 border rounded-md"></div>
-                                ${currentStageInfo.hasNotes ? `<div><label for="approverNotes" class="block text-xs font-medium text-gray-600">${currentStageInfo.notesLabel}</label><textarea id="approverNotes" rows="3" class="mt-1 w-full p-2 border rounded-md"></textarea></div>` : ''}
-                            </div>
-                        </div>`;
-                }
-
-                modalContent.innerHTML = contentHTML;
-
-                let buttonsHTML = `<button id="modal-close-btn" class="inline-flex justify-center rounded-md border px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">關閉</button>`;
-                if (canApprove) {
-                    if(currentStageInfo.prevStatus) {
-                        buttonsHTML += `<button id="modal-return-btn" class="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-yellow-100 text-sm font-medium text-yellow-800 hover:bg-yellow-200">退回上一步</button>`;
-                    }
-                    
-                    let approveButtonText = '核准';
-                    if (currentStageInfo.isEvaluation) {
-                        approveButtonText = '陳核';
-                    } else if (currentStageInfo.title === '單位主管簽核' || currentStageInfo.requiredRole === 'handlerSupervisor') {
-                        approveButtonText = '簽章';
-                    }
-
-                    if (!currentStageInfo.isEvaluation) {
-                         buttonsHTML += `<button id="modal-reject-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-sm font-medium text-white hover:bg-red-700">駁回</button>`;
-                    }
-                    buttonsHTML += `<button id="modal-approve-btn" class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-sm font-medium text-white hover:bg-blue-700">${approveButtonText}</button>`;
-                }
-                modalButtons.innerHTML = buttonsHTML;
-
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-
-                document.getElementById('modal-close-btn').onclick = hideModal;
-
-                const approveBtn = document.getElementById('modal-approve-btn');
-                const rejectBtn = document.getElementById('modal-reject-btn');
-                const returnBtn = document.getElementById('modal-return-btn');
-
-                if(returnBtn) {
-                     returnBtn.onclick = () => {
-                        showConfirm(`確定要將此案件退回至「${approvalStages[currentStageInfo.prevStatus].title}」嗎？`, (confirmed) => {
-                            if (confirmed) {
-                                handleReturnAction(id, currentStageInfo);
-                            }
-                        }, '確認退回');
-                    };
-                }
-
-                const handleApprovalAction = async (isApproved) => {
-                    const approverName = document.getElementById('approverName').value.trim();
-                    if (!approverName) { showAlert('請輸入簽核人姓名。'); return; }
-                    
-                    const updateData = { approvalStatus: isApproved ? currentStageInfo.nextStatus : '已駁回' };
-                    const stageData = { name: approverName, date: new Date().toLocaleDateString('zh-TW'), approved: isApproved };
-
-                    if (currentStageInfo.hasNotes) {
-                        const notes = document.getElementById('approverNotes').value.trim();
-                        if(currentStageInfo.isEvaluation) stageData.evaluation = notes;
-                        else stageData.suggestion = notes;
-                    }
-
-                    updateData[currentStageInfo.field] = stageData;
-
-                    try {
-                        const docRef = doc(state.db, 'rpa-requests', id);
-                        await updateDoc(docRef, updateData);
-                        hideModal();
-                        
-                        if (isApproved && currentStageInfo.nextStatus !== '已核准') {
-                            const nextStageTitle = approvalStages[currentStageInfo.nextStatus].title;
-                            const approvalLink = `${window.location.origin}${window.location.pathname}?requestId=${id}`;
-                            showSuccessWithLink(
-                                `此階段已完成！請將以下連結傳送給「${nextStageTitle}」進行簽核。`,
-                                approvalLink
-                            );
-                        } else {
-                            showAlert(`此申請已${isApproved ? '核准' : '駁回'}`);
-                        }
-                    } catch (error) {
-                        console.error("Error updating document:", error);
-                        showAlert('更新失敗，請稍後再試。', '錯誤');
-                    }
-                };
-
-                if(approveBtn) approveBtn.onclick = () => handleApprovalAction(true);
-                if(rejectBtn) rejectBtn.onclick = () => handleApprovalAction(false);
-            }
-
-            async function submitForm(e) {
-                e.preventDefault();
-                const applicantName = document.getElementById('applicantName').value.trim();
-                if (!applicantName) { showAlert('請填寫申請人姓名！', '資料不完整'); return; }
-
-                submitBtn.disabled = true;
-                submitBtn.textContent = '處理中...';
-
-                try {
-                    const today = new Date();
-                    const datePrefix = `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}`;
-                    const q = query(collection(state.db, "rpa-requests"), where("requestId", ">=", `${datePrefix}-`), where("requestId", "<", `${datePrefix}-~`));
-                    const querySnapshot = await getDocs(q);
-                    const newSeq = String(querySnapshot.size + 1).padStart(3, '0');
-                    const newRequestId = `${datePrefix}-${newSeq}`;
-                    
-                    const formData = {
-                        requestId: newRequestId,
-                        applicantDate: document.getElementById('applicantDate').value,
-                        applicantName,
-                        unitCode: document.getElementById('unitCode').value,
-                        applicantUnit: document.getElementById('applicantUnit').value,
-                        phoneExt: document.getElementById('phoneExt').value,
-                        phoneMobile: document.getElementById('phoneMobile').value,
-                        programName: document.getElementById('programName').value,
-                        workFlow: document.getElementById('workFlow').value,
-                        applicationPurpose: document.getElementById('applicationPurpose').value,
-                        approvalStatus: '待單位主管簽核',
-                        createdAt: serverTimestamp()
-                    };
-
-                    const newDocRef = await addDoc(collection(state.db, "rpa-requests"), formData);
-                    const approvalLink = `${window.location.origin}${window.location.pathname}?requestId=${newDocRef.id}`;
-                    showSuccessWithLink('申請已成功送出！請將以下連結傳送給您的單位主管進行簽核。', approvalLink);
-                    
-                    form.reset();
-                    document.getElementById('applicantDate').valueAsDate = new Date();
-                    setActiveTab('search');
-                    searchInput.value = formData.requestId;
-                    handleSearch();
-
-                } catch (error) {
-                    console.error("Form submission error: ", error);
-                    showAlert('提交失敗，請檢查您的網路連線。', '錯誤');
-                } finally {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = '提交申請';
-                }
-            }
-
-            // --- FIRESTORE INITIALIZATION ---
-            function listenForRequests() {
-                if (!state.db) return;
-                const requestsColRef = collection(state.db, 'rpa-requests');
-                onSnapshot(requestsColRef, (snapshot) => {
-                    state.requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    state.requests.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                    
-                    if (state.deepLinkedRequestId && state.requests.length > 0) {
-                        const request = state.requests.find(r => r.id === state.deepLinkedRequestId);
-                        if(request) {
-                            setActiveTab('search');
-                            searchInput.value = request.requestId;
-                            handleSearch();
-                            const resultEl = document.getElementById('search-results');
-                            if(resultEl) {
-                                setTimeout(() => {
-                                    const firstCard = resultEl.querySelector('.p-6');
-                                    if (firstCard) {
-                                        firstCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                        firstCard.style.transition = 'background-color 0.5s';
-                                        firstCard.style.backgroundColor = '#eef2ff'; // indigo-50
-                                        setTimeout(() => { firstCard.style.backgroundColor = ''; }, 2000);
-                                    }
-                                }, 200);
-                            }
-                        }
-                        const url = new URL(window.location);
-                        url.searchParams.delete('requestId');
-                        window.history.replaceState({}, '', url);
-                        state.deepLinkedRequestId = null;
-                    }
-
-                    updateUI();
-                    if(state.activeTab === 'search') { handleSearch(); }
-                }, (error) => {
-                    console.error("Error listening for requests:", error);
-                });
-            }
-
-            function handleUrlParams() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const requestId = urlParams.get('requestId');
-                if (requestId) {
-                    state.deepLinkedRequestId = requestId;
-                }
-            }
-
-            async function initFirebase() {
-                try {
-                    // Your web app's Firebase configuration from your request
-                    const firebaseConfig = {
-                        apiKey: "AIzaSyAaF0b3-C8v_uaed0XtFKfWC7ElFNrrshc",
-                        authDomain: "carforms-dc898.firebaseapp.com",
-                        projectId: "carforms-dc898",
-                        storageBucket: "carforms-dc898.firebasestorage.app",
-                        messagingSenderId: "1098158902069",
-                        appId: "1:1098158902069:web:3ade4f7a607126a7051a7c",
-                        measurementId: "G-PM7NV0LD27"
-                    };
-
-                    // Initialize Firebase
-                    const app = initializeApp(firebaseConfig);
-                    const analytics = getAnalytics(app); // Initialize Analytics
-                    
-                    state.db = getFirestore(app);
-                    const auth = getAuth(app);
-                    await signInAnonymously(auth);
-                    listenForRequests();
-
-                } catch (error) {
-                    console.error("Firebase Initialization Error:", error);
-                    showAlert('系統初始化失敗，請重新整理頁面。', '嚴重錯誤');
-                }
-            }
-
-            function init() {
-                handleUrlParams();
-                initFirebase();
-                setActiveTab('apply');
-                updateUI();
-                document.getElementById('applicantDate').valueAsDate = new Date();
-            }
-
-            // --- EVENT LISTENERS ---
-            form.addEventListener('submit', submitForm);
-            clearBtn.addEventListener('click', () => form.reset());
-            adminLoginPromptBtn.addEventListener('click', promptLogin);
-            tabButtons.forEach(btn => btn.addEventListener('click', () => setActiveTab(btn.dataset.tab)));
-            searchBtn.addEventListener('click', handleSearch);
-            searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(); });
-            
-            init();
-        });
-    </script>
-</body>
-</html>
+export default App;
